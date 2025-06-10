@@ -421,12 +421,33 @@ class GPDynamicFrontierLouvain:
         # Run local-moving phase
         self.louvain_move(lambda_functions)
 
-        # Return community assignments
+        # Build current community assignment
         new_community = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
-        separated_communities_using_gp = separate_communities(self.graph, new_community)
-        return separated_communities_using_gp
-    
+
+        # Only trigger gp_separator on changed/affected communities
+        # Optimization: skip bisection for very large communities and use MiniBatchKMeans for large ones
+        import time
+        affected_nodes = set(self.get_affected_nodes())
+        if not affected_nodes:
+            # If no affected nodes, return as is
+            return new_community
+
+        # Find affected community ids
+        affected_comm_ids = set(
+            self.community[self.node_to_idx[node]] for node in affected_nodes
+        )
+        # Build subgraph and sub-community mapping for affected communities
+        affected_subgraph_nodes = [node for node in self.nodes if self.community[self.node_to_idx[node]] in affected_comm_ids]
+        affected_subgraph = self.graph.subgraph(affected_subgraph_nodes)
+        affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
+
+        separated = separate_communities(affected_subgraph, affected_communities)
+
+        updated_community = new_community.copy()
+        updated_community.update(separated)
+        return updated_community
         
+
     def get_modularity(self) -> float:
         """
         Calculate modularity of current community structure.

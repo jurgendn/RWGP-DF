@@ -2,9 +2,9 @@ from typing import Dict, List, Tuple
 
 import networkx as nx
 import numpy as np
-from sklearn.cluster import KMeans
-
-
+from sklearn.cluster import KMeans, MiniBatchKMeans
+from src.community_info import CommunityUtils
+from pyinstrument import Profiler
 
 def separate_communities(
     graph: nx.Graph, communities: Dict[int, int]
@@ -12,8 +12,8 @@ def separate_communities(
     """
     Separate communities in the graph using K-Means clustering.
 
-    This method iterates through each community and applies K-Means to split
-    it into two sub-communities based on node embeddings derived from random walks.
+    Only updates communities that are actually split (i.e., where modularity improves).
+    Unchanged communities retain their original IDs.
 
     Args:
         communities: Dictionary mapping nodes to community IDs
@@ -21,25 +21,51 @@ def separate_communities(
     Returns:
         Dictionary mapping nodes to new community IDs after separation
     """
-    new_communities = []
-    for community_id in set(communities.values()):
-        # Get nodes in the current community
-        community = [node for node, comm in communities.items() if comm == community_id]
-
-        if len(community) <= 1:
-            continue
-
-        # Split the community into two sub-communities
-        C1, C2 = split_one_community(graph, community)
-        new_communities.append(C1)
-        new_communities.append(C2)
-        new_communities = [c for c in new_communities if c]
-    # Create a new mapping of nodes to community IDs
-    new_community_mapping = {}
-    for i, community in enumerate(new_communities):
-        for node in community:
-            new_community_mapping[node] = i
-    return new_community_mapping
+    # Get initial communities as sets
+    p = Profiler()
+    with p:
+        comm_dict = CommunityUtils.get_communities_as_sets(communities)
+        origin_communities = [list(comm) for comm in comm_dict.values()]
+        current_modularity = nx.algorithms.community.quality.modularity(
+            G=graph,
+            communities=origin_communities,
+        )
+        # Map node to current community id
+        node_to_comm = {node: cid for cid, nodes in comm_dict.items() for node in nodes}
+        # Track next available community id
+        next_comm_id = max(comm_dict.keys()) + 1 if comm_dict else 0
+        updated = True
+        while updated:
+            updated = False
+            for comm_id, community in list(comm_dict.items()):
+                if len(community) <= 1:
+                    continue
+                C1, C2 = split_one_community(graph, list(community))
+                if not C1 or not C2:
+                    continue
+                candidate_communities = [nodes if cid != comm_id else C1 for cid, nodes in comm_dict.items() if cid != comm_id]
+                candidate_communities.append(C1)
+                candidate_communities.append(C2)
+                candidate_modularity = nx.algorithms.community.quality.modularity(
+                    G=graph,
+                    communities=candidate_communities,
+                )
+                if candidate_modularity > current_modularity:
+                    # Update mapping: assign new id to C2, keep C1 as comm_id
+                    for node in C1:
+                        node_to_comm[node] = comm_id
+                    for node in C2:
+                        node_to_comm[node] = next_comm_id
+                    # Update comm_dict
+                    comm_dict[comm_id] = set(C1)
+                    comm_dict[next_comm_id] = set(C2)
+                    next_comm_id += 1
+                    current_modularity = candidate_modularity
+                    updated = True
+                    break  # Restart after any change
+    # p.print()
+    return node_to_comm
+    
 
 
 def split_one_community(
@@ -81,16 +107,20 @@ def split_one_community(
     D_vectors = P_t_norm - phi_norm.reshape(1, -1)  # Embedding
 
     # Use K-Means to split the D_vectors space
-    try:
-        labels = KMeans(n_clusters=2, n_init=10, random_state=0).fit_predict(D_vectors)
-    except Exception as e:
-        print(f"Error during KMeans clustering: {e}")
+    if len(community) > 50:
+        try:
+            kmeans = KMeans(n_clusters=2, n_init=1, max_iter=50, random_state=0)
+            # Use MiniBatchKMeans for large communities
+            labels = kmeans.fit_predict(D_vectors)
+            C1 = [community[i] for i in range(len(community)) if labels[i] == 0]
+            C2 = [community[i] for i in range(len(community)) if labels[i] == 1]
+            return C1, C2
+        except Exception as e:
+            print(f"Error during KMeans clustering: {e}")
+            return community, []
+    else:
         return community, []
 
-    C1 = [community[i] for i in range(len(community)) if labels[i] == 0]
-    C2 = [community[i] for i in range(len(community)) if labels[i] == 1]
-
-    return C1, C2
 
 
 def normalize(matrix: np.ndarray):

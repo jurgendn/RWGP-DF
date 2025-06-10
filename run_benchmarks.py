@@ -25,9 +25,9 @@ def main():
     dataset_dir = os.path.join(current_dir, "dataset")
     dataset_paths = {
         "CollegeMsg": os.path.join(dataset_dir, "CollegeMsg.txt"),
-        "BitcoinAlpha": os.path.join(dataset_dir, "soc-sign-bitcoinalpha.csv"),
-        "BitcoinOTC": os.path.join(dataset_dir, "soc-sign-bitcoinotc.csv"),
-        "SX - MathOverFlow": os.path.join(dataset_dir, "sx-mathoverflow.txt"),
+        # "BitcoinAlpha": os.path.join(dataset_dir, "soc-sign-bitcoinalpha.csv"),
+        # "BitcoinOTC": os.path.join(dataset_dir, "soc-sign-bitcoinotc.csv"),
+        # "SX - MathOverFlow": os.path.join(dataset_dir, "sx-mathoverflow.txt"),
     }
 
     # Verify datasets exist
@@ -70,14 +70,14 @@ async def async_main():
     print("Dynamic Frontier Louvain Benchmarking Suite")
     print("=" * 50)
 
-    batch_range = 1e-4
+    batch_range = 1e-3
 
     # Dataset paths
     dataset_dir = os.path.join(current_dir, "dataset")
     dataset_paths = {
-        "CollegeMsg": os.path.join(dataset_dir, "CollegeMsg.txt"),
-        "BitcoinAlpha": os.path.join(dataset_dir, "soc-sign-bitcoinalpha.csv"),
-        "BitcoinOTC": os.path.join(dataset_dir, "soc-sign-bitcoinotc.csv"),
+        # "CollegeMsg": os.path.join(dataset_dir, "CollegeMsg.txt"),
+        # "BitcoinAlpha": os.path.join(dataset_dir, "soc-sign-bitcoinalpha.csv"),
+        # "BitcoinOTC": os.path.join(dataset_dir, "soc-sign-bitcoinotc.csv"),
         "SX - MathOverFlow": os.path.join(dataset_dir, "sx-mathoverflow.txt"),
     }
 
