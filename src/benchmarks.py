@@ -19,7 +19,11 @@ from .data_loader import (
     load_college_msg_dataset,
     load_sx_mathoverflow_dataset,
 )
-from .df_louvain import AsyncDynamicFrontierLouvain, DynamicFrontierLouvain
+from .df_louvain import (
+    AsyncDynamicFrontierLouvain,
+    DynamicFrontierLouvain,
+    GPDynamicFrontierLouvain,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -220,10 +224,32 @@ class DFLouvainBenchmark:
             "communities": df_communities,
         }
 
+        # GPDFLouvain
+        start_time = time.time()
+        gp_df_louvain = GPDynamicFrontierLouvain(G, verbose=False)
+        gp_df_communities_dict = gp_df_louvain.run_dynamic_frontier_louvain()
+        gp_df_modularity = gp_df_louvain.get_modularity()
+        gp_df_time = time.time() - start_time
+
+        # Convert to NetworkX format for comparison
+        gp_df_communities = defaultdict(set)
+        for node, community in gp_df_communities_dict.items():
+            gp_df_communities[community].add(node)
+        gp_df_communities = list(gp_df_communities.values())
+
+        results["gp_df_louvain"] = {
+            "modularity": gp_df_modularity,
+            "runtime": gp_df_time,
+            "num_communities": len(gp_df_communities),
+            "communities": gp_df_communities,
+        }
+
         # Comparison metrics
         results["comparison"] = {
-            "modularity_diff": abs(nx_modularity - df_modularity),
-            "runtime_ratio": df_time / nx_time if nx_time > 0 else float("inf"),
+            "gp_df_modularity_diff": abs(nx_modularity - gp_df_modularity),
+            "df_modularity_diff": abs(nx_modularity - df_modularity),
+            "modularity_diff": abs(nx_modularity - gp_df_modularity),
+            "runtime_ratio": gp_df_time / nx_time if nx_time > 0 else float("inf"),
             "community_count_diff": abs(len(nx_communities_list) - len(df_communities)),
         }
 
@@ -233,6 +259,9 @@ class DFLouvainBenchmark:
             )
             print(
                 f"DFLouvain: Modularity={df_modularity:.4f}, Runtime={df_time:.3f}s, Communities={len(df_communities)}"
+            )
+            print(
+                f"GPDFLouvain: Modularity={gp_df_modularity:.4f}, Runtime={gp_df_time:.3f}s, Communities={len(gp_df_communities)}"
             )
             print(
                 f"Modularity difference: {results['comparison']['modularity_diff']:.4f}"
@@ -255,15 +284,19 @@ class DFLouvainBenchmark:
         results = {
             "df_runtimes": [],
             "df_modularities": [],
+            "gp_df_runtimes": [],
+            "gp_df_modularities": [],
             "nx_runtimes": [],
             "nx_modularities": [],
-            "affected_nodes": [],
+            "df_affected_nodes": [],
+            "gp_df_affected_nodes": [],
             "total_runtime": 0,
             "iterations_per_step": [],
         }
 
         # Initialize DFLouvain
         df_louvain = DynamicFrontierLouvain(G, verbose=False)
+        gp_df_louvain = GPDynamicFrontierLouvain(G, verbose=False)
 
         # Initial state - both algorithms
         df_start_time = time.time()
@@ -272,6 +305,14 @@ class DFLouvainBenchmark:
         initial_df_modularity = df_louvain.get_modularity()
         results["df_modularities"].append(initial_df_modularity)
         results["df_runtimes"].append(df_initial_time)
+        
+        # Initial state - GP DFLouvain
+        gp_df_start_time = time.time()
+        gp_df_louvain.run_dynamic_frontier_louvain()
+        gp_df_initial_time = time.time() - gp_df_start_time
+        initial_gp_df_modularity = gp_df_louvain.get_modularity()
+        results["gp_df_modularities"].append(initial_gp_df_modularity)
+        results["gp_df_runtimes"].append(gp_df_initial_time)
 
         # Initial NetworkX Louvain
         nx_start_time = time.time()
@@ -290,9 +331,9 @@ class DFLouvainBenchmark:
 
         # Process temporal changes
         progress_bar = tqdm(
-            enumerate(temporal_changes),
+            enumerate(temporal_changes[:100]),
             desc="Processing Temporal Changes",
-            total=len(temporal_changes),
+            total=len(temporal_changes[:100]),
         )
         for i, changes in progress_bar:
             progress_bar.set_description(f"Step {i + 1}/{len(temporal_changes)}")
@@ -306,8 +347,15 @@ class DFLouvainBenchmark:
             df_step_start_time = time.time()
             df_louvain.run_dynamic_frontier_louvain(deletions, insertions)
             df_modularity = df_louvain.get_modularity()
-            affected_nodes = len(df_louvain.get_affected_nodes())
+            df_affected_nodes = len(df_louvain.get_affected_nodes())
             df_step_runtime = time.time() - df_step_start_time
+            
+            # GPDFLouvain dynamic update
+            gp_df_step_start_time = time.time()
+            gp_df_louvain.run_dynamic_frontier_louvain(deletions, insertions)
+            gp_df_modularity = gp_df_louvain.get_modularity()
+            gp_df_affected_nodes = len(gp_df_louvain.get_affected_nodes())
+            gp_df_step_runtime = time.time() - gp_df_step_start_time
 
             # Update current graph for NetworkX
             for edge in deletions:
@@ -331,17 +379,23 @@ class DFLouvainBenchmark:
 
             # Store results
             results["df_runtimes"].append(df_step_runtime)
+            results["gp_df_runtimes"].append(gp_df_step_runtime)
             results["df_modularities"].append(df_modularity)
+            results["gp_df_modularities"].append(gp_df_modularity)
             results["nx_runtimes"].append(nx_step_runtime)
             results["nx_modularities"].append(nx_modularity)
-            results["affected_nodes"].append(affected_nodes)
+            results["df_affected_nodes"].append(df_affected_nodes)
+            results["gp_df_affected_nodes"].append(gp_df_affected_nodes)
 
             progress_bar.set_postfix(
                 {
                     "DF_Q": f"{df_modularity:.4f}",
+                    "GPDF_Q": f"{gp_df_modularity:.4f}",
                     "NX_Q": f"{nx_modularity:.4f}",
-                    "Affected": affected_nodes,
+                    "DF Affected": df_affected_nodes,
+                    "GPDF Affected": gp_df_affected_nodes,
                     "DF_Runtime": f"{df_step_runtime:.3f}s",
+                    "GPDF_Runtime": f"{gp_df_step_runtime:.3f}s",
                     "NX_Runtime": f"{nx_step_runtime:.3f}s",
                 }
             )
@@ -352,16 +406,22 @@ class DFLouvainBenchmark:
 
         results["total_runtime"] = time.time() - total_start_time
         results["avg_df_runtime"] = np.mean(results["df_runtimes"])
+        results["avg_gp_df_runtime"] = np.mean(results["gp_df_runtimes"])
         results["avg_nx_runtime"] = np.mean(results["nx_runtimes"])
         results["df_modularity_stability"] = np.std(results["df_modularities"])
+        results["gp_df_modularity_stability"] = np.std(results["gp_df_modularities"])
         results["nx_modularity_stability"] = np.std(results["nx_modularities"])
 
         if self.verbose:
             print(f"Total dynamic runtime: {results['total_runtime']:.3f}s")
             print(f"Average DF step runtime: {results['avg_df_runtime']:.3f}s")
+            print(f"Average GPDF step runtime: {results['avg_gp_df_runtime']:.3f}s")
             print(f"Average NX step runtime: {results['avg_nx_runtime']:.3f}s")
             print(
                 f"DF Modularity range: [{min(results['df_modularities']):.4f}, {max(results['df_modularities']):.4f}]"
+            )
+            print(
+                f"GP-DF Modularity range: [{min(results['gp_df_modularities']):.4f}, {max(results['gp_df_modularities']):.4f}]"
             )
             print(
                 f"NX Modularity range: [{min(results['nx_modularities']):.4f}, {max(results['nx_modularities']):.4f}]"
@@ -539,6 +599,7 @@ class DFLouvainBenchmark:
         static = results["static_comparison"]
         print("\nStatic Performance:")
         print(f"  DFLouvain Modularity: {static['df_louvain']['modularity']:.4f}")
+        print(f"  GPDFLouvain Modularity: {static['gp_df_louvain']['modularity']:.4f}")
         print(f"  NetworkX Modularity: {static['networkx']['modularity']:.4f}")
         print(f"  Runtime Ratio (DF/NX): {static['comparison']['runtime_ratio']:.2f}")
 
@@ -547,6 +608,7 @@ class DFLouvainBenchmark:
         print("\nDynamic Performance:")
         print(f"  Total Runtime: {dynamic['total_runtime']:.3f}s")
         print(f"  Avg DF Step Runtime: {dynamic['avg_df_runtime']:.3f}s")
+        print(f"  Avg GPDF Step Runtime: {dynamic['avg_gp_df_runtime']:.3f}s")
         print(f"  Avg NX Step Runtime: {dynamic['avg_nx_runtime']:.3f}s")
         print(f"  DF Modularity Std: {dynamic['df_modularity_stability']:.4f}")
         print(f"  NX Modularity Std: {dynamic['nx_modularity_stability']:.4f}")
@@ -585,18 +647,27 @@ class DFLouvainBenchmark:
         axes[0, 0].plot(
             time_steps,
             dynamic["df_modularities"],
-            "b-",
+            "blue",
             linewidth=1,
-            alpha=0.7,
+            alpha=0.5,
             label="DF Louvain",
             # marker="o",
         )
         axes[0, 0].plot(
             time_steps,
-            dynamic["nx_modularities"],
-            "r-",
+            dynamic["gp_df_modularities"],
+            "teal",
             linewidth=1,
-            alpha=0.7,
+            alpha=0.5,
+            label="GP-DF Louvain",
+            # marker="o",
+        )
+        axes[0, 0].plot(
+            time_steps,
+            dynamic["nx_modularities"],
+            "red",
+            linewidth=1,
+            alpha=0.5,
             label="NetworkX Louvain",
             # marker="s",
         )
@@ -612,18 +683,27 @@ class DFLouvainBenchmark:
         axes[0, 1].plot(
             range(len(dynamic["df_runtimes"])),
             dynamic["df_runtimes"],
-            "b-",
+            "blue",
             linewidth=1,
             label="DF Louvain",
-            alpha=0.7,
+            alpha=0.5,
+            # marker="o",
+        )
+        axes[0, 1].plot(
+            range(len(dynamic["gp_df_runtimes"])),
+            dynamic["gp_df_runtimes"],
+            "teal",
+            linewidth=1,
+            label="GP-DF Louvain",
+            alpha=0.5,
             # marker="o",
         )
         axes[0, 1].plot(
             range(len(dynamic["nx_runtimes"])),
             dynamic["nx_runtimes"],
-            "r-",
+            "red",
             linewidth=1,
-            alpha=0.7,
+            alpha=0.5,
             label="NetworkX Louvain",
             # marker="s",
         )
@@ -639,21 +719,28 @@ class DFLouvainBenchmark:
 
         # 3. Affected nodes over time
         axes[1, 0].plot(
-            range(len(dynamic["affected_nodes"])),
-            dynamic["affected_nodes"],
-            "g-",
+            range(len(dynamic["df_affected_nodes"])),
+            dynamic["df_affected_nodes"],
+            "blue",
             linewidth=1,
             # marker="d",
         )
-        axes[1, 0].set_title("Affected Nodes Per Step (DF Louvain)")
+        axes[1, 0].plot(
+            range(len(dynamic["gp_df_affected_nodes"])),
+            dynamic["gp_df_affected_nodes"],
+            "teal",
+            linewidth=1,
+            # marker="d",
+        )
+        axes[1, 0].set_title("Affected Nodes Per Step (DF Louvain vs GP-DF Louvain)")
         axes[1, 0].set_xlabel("Time Step")
         axes[1, 0].set_ylabel("Number of Affected Nodes")
         axes[1, 0].grid(True, alpha=0.3)
 
         # 4. Average runtime comparison (bar chart)
-        algorithms = ["DF Louvain", "NetworkX Louvain"]
-        avg_runtimes = [dynamic["avg_df_runtime"], dynamic["avg_nx_runtime"]]
-        colors = ["blue", "red"]
+        algorithms = ["DF Louvain", "GP-DF Louvain", "NetworkX Louvain"]
+        avg_runtimes = [dynamic["avg_df_runtime"], dynamic["avg_gp_df_runtime"], dynamic["avg_nx_runtime"]]
+        colors = ["blue", "teal", "red"]
 
         bars = axes[1, 1].bar(algorithms, avg_runtimes, color=colors, alpha=0.7)
         axes[1, 1].set_title("Average Runtime Comparison")
