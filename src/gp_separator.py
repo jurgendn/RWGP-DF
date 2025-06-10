@@ -107,7 +107,7 @@ def split_one_community(
     D_vectors = P_t_norm - phi_norm.reshape(1, -1)  # Embedding
 
     # Use K-Means to split the D_vectors space
-    if len(community) > 200:
+    if len(community) > 50:
         try:
             kmeans = KMeans(n_clusters=2, n_init=1, max_iter=50, random_state=0)
             # Use MiniBatchKMeans for large communities

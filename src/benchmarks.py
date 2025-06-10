@@ -18,6 +18,9 @@ from .data_loader import (
     load_bitcoin_dataset,
     load_college_msg_dataset,
     load_sx_mathoverflow_dataset,
+    load_bitcoin_sliding_window,
+    load_college_msg_sliding_window,
+    load_sx_mathoverflow_sliding_window,
 )
 from .df_louvain import (
     AsyncDynamicFrontierLouvain,
@@ -122,6 +125,9 @@ class DFLouvainBenchmark:
 
         # Load dataset
         if dataset_type == "college_msg":
+            # G, temporal_changes = load_college_msg_sliding_window(
+            #     file_path=dataset_path, window_size=5, step_size=1
+            # )
             G, temporal_changes = load_college_msg_dataset(
                 dataset_path, batch_range, initial_fraction
             )
@@ -331,9 +337,9 @@ class DFLouvainBenchmark:
 
         # Process temporal changes
         progress_bar = tqdm(
-            enumerate(temporal_changes[:100]),
+            enumerate(temporal_changes),
             desc="Processing Temporal Changes",
-            total=len(temporal_changes[:100]),
+            total=len(temporal_changes),
         )
         for i, changes in progress_bar:
             progress_bar.set_description(f"Step {i + 1}/{len(temporal_changes)}")
