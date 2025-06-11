@@ -439,15 +439,6 @@ class DFLouvainBenchmark:
             print(f"  Avg NX Step Runtime: {dynamic['nx']['avg_runtime']:.3f}s")
             print(f"  NX Modularity Std: {dynamic['nx']['modularity_stability']:.4f}")
 
-        # Community stability
-        stability = results["community_stability"]
-        print("\nCommunity Stability:")
-        print(
-            f"  Change Rate: {stability['stability_metrics']['overall_change_rate']:.3f}"
-        )
-        print(
-            f"  Avg Changes/Step: {stability['stability_metrics']['avg_changes_per_step']:.1f}"
-        )
 
     def plot_results(self, dataset_name: str, save_path: Optional[str] = None) -> None:
         """
@@ -582,7 +573,6 @@ class DFLouvainBenchmark:
             # Dynamic performance summary
             dynamic = results["dynamic_performance"]
             # Stability summary
-            stability = results["community_stability"]
 
             row = {
                 "dataset": dataset_name,
@@ -592,9 +582,6 @@ class DFLouvainBenchmark:
                 "nx_modularity": static["nx"]["modularity"],
                 "total_dynamic_runtime": dynamic["general"]["total_runtime"],
                 "avg_nx_step_runtime": dynamic["nx"]["avg_runtime"],
-                "avg_changes_per_step": stability["stability_metrics"][
-                    "avg_changes_per_step"
-                ],
             }
             
             # Add method-specific data using a for loop
