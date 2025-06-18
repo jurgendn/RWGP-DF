@@ -1,0 +1,62 @@
+# mode: "window_frame" # Options: "batch", "window_frame"
+mode: "batch" # Options: "batch", "window_frame"
+target_datasets:
+  # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
+  - sx-mathoverflow
+  # - college_msg
+  # - bitcoin_alpha
+  # - bitcoin_otc
+batch_data_manager:
+  college_msg:
+    dataset_path: dataset/CollegeMsg.txt
+    dataset_type: college_msg
+    batch_range: 0.0001
+    initial_fraction: 0.85
+    max_steps: 100
+  bitcoin_alpha:
+    dataset_path: dataset/soc-sign-bitcoinalpha.csv
+    dataset_type: bitcoin_alpha
+    batch_range: 0.0001
+    initial_fraction: 0.9
+    max_steps: 500
+  bitcoin_otc:
+    dataset_path: dataset/soc-sign-bitcoinotc.csv
+    dataset_type: bitcoin_otc
+    batch_range: 0.001
+    initial_fraction: 0.9
+    max_steps: 500
+  sx-mathoverflow:
+    dataset_path: dataset/sx-mathoverflow.txt
+    dataset_type: sx-mathoverflow
+    batch_range: 0.0001
+    initial_fraction: 0.9
+    max_steps: 100
+window_frame_data_manager:
+  college_msg:
+    dataset_path: dataset/CollegeMsg.txt
+    dataset_type: college_msg
+    window_size: 10
+    step_size: 2
+    initial_fraction: 0.8
+    max_steps: 500
+  bitcoin_alpha:
+    dataset_path: dataset/soc-sign-bitcoinalpha.csv
+    dataset_type: bitcoin_alpha
+    window_size: 15
+    step_size: 5
+    initial_fraction: 0.9
+    max_steps: 500
+  bitcoin_otc:
+    dataset_path: dataset/soc-sign-bitcoinotc.csv
+    dataset_type: bitcoin_otc
+    window_size: 15
+    step_size: 5
+    initial_fraction: 0.9
+    max_steps: 500
+  sx-mathoverflow:
+    dataset_path: dataset/sx-mathoverflow.txt
+    dataset_type: sx-mathoverflow
+    window_size: 2
+    step_size: 1
+    initial_fraction: 0.9
+    max_steps: 500

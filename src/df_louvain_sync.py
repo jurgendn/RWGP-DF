@@ -30,7 +30,7 @@ class DynamicFrontierLouvain:
         graph: nx.Graph,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
-        verbose: bool = True,
+        verbose: bool = False,
     ) -> None:
         """
         Initialize Dynamic Frontier Louvain algorithm.
@@ -41,6 +41,7 @@ class DynamicFrontierLouvain:
             max_iterations: Maximum iterations per local-moving phase
             verbose: Whether to print progress information
         """
+        self.__shortname__ = "df"
         self.graph = graph.copy()
         self.tolerance = tolerance
         self.max_iterations = max_iterations
