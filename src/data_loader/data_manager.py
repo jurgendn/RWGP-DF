@@ -166,6 +166,7 @@ class DatasetBatchManager(BaseDatasetManager):
         dataset_type: str,
         batch_range: float = 1e-3,
         initial_fraction: float = 0.3,
+        max_steps: int = 100,
         force_reload: bool = False,
     ) -> Tuple[nx.Graph, List[Dict[Text, List]]]:
         """
@@ -205,6 +206,7 @@ class DatasetBatchManager(BaseDatasetManager):
             file_path=dataset_path,
             batch_range=batch_range,
             initial_fraction=initial_fraction,
+            max_steps=max_steps,
         )
         
         load_time = time.time() - start_time
@@ -244,6 +246,7 @@ class DatasetWindowTimeManager(BaseDatasetManager):
         window_size: int = 5,
         step_size: int = 1,
         initial_fraction: float = 0.3,
+        max_steps: int | None = None,
         force_reload: bool = False,
     ) -> Tuple[nx.Graph, List[Dict]]:
         """
@@ -285,6 +288,7 @@ class DatasetWindowTimeManager(BaseDatasetManager):
             window_size=window_size,
             step_size=step_size,
             initial_fraction=initial_fraction,
+            max_steps=max_steps,
         )
         
         load_time = time.time() - start_time

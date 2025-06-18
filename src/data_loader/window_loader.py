@@ -9,7 +9,10 @@ import pandas as pd
 
 
 def load_graph_with_sliding_window(
-    file_path: str, window_size: int, step_size: int, initial_fraction: float
+    file_path: str,
+    window_size: int,
+    step_size: int,
+    initial_fraction: float,
 ) -> List[nx.Graph]:
     """
     Load a sequence of graphs using a sliding window over edge timestamps.
@@ -63,7 +66,11 @@ def _collect_edges_by_date(data):
     return sorted(edges_by_date.items())
 
 def load_sx_mathoverflow_sliding_window(
-    file_path: str, window_size: int, step_size: int, initial_fraction: float
+    file_path: str,
+    window_size: int,
+    step_size: int,
+    initial_fraction: float,
+    max_steps: int | None = None,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load MathOverflow dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -112,10 +119,16 @@ def load_sx_mathoverflow_sliding_window(
         deletions = [(u, v) for u, v in prev_edges - curr_edges]
         temporal_changes.append({"deletions": deletions, "insertions": insertions})
         prev_edges = curr_edges
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 
 def load_college_msg_sliding_window(
-    file_path: str, window_size: int, step_size: int, initial_fraction: float
+    file_path: str,
+    window_size: int,
+    step_size: int,
+    initial_fraction: float,
+    max_steps: int | None = None,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load CollegeMsg dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -164,10 +177,12 @@ def load_college_msg_sliding_window(
         deletions = [(u, v) for u, v in prev_edges - curr_edges]
         temporal_changes.append({"deletions": deletions, "insertions": insertions})
         prev_edges = curr_edges
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 
 def load_bitcoin_sliding_window(
-    file_path: str, window_size: int, step_size: int, initial_fraction: float
+    file_path: str, window_size: int, step_size: int, initial_fraction: float, max_steps: int | None = None
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load Bitcoin dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -216,5 +231,7 @@ def load_bitcoin_sliding_window(
         deletions = [(u, v) for u, v in prev_edges - curr_edges]
         temporal_changes.append({"deletions": deletions, "insertions": insertions})
         prev_edges = curr_edges
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 

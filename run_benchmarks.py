@@ -51,7 +51,13 @@ def main():
     # Create plots for each dataset
     for dataset_name, dataset_config in data_config.items():
         if dataset_name in benchmark.results and dataset_name in target_datasets:
-            plot_path = os.path.join(results_dir, f"{dataset_name}_benchmark_plots.png")
+            batch_range = dataset_config.get("batch_range")
+            initial_fraction = dataset_config.get("initial_fraction")
+            # Create plot for the dataset
+            plot_path = os.path.join(
+                results_dir,
+                f"{dataset_name}_batch_range_{batch_range}_initial_fraction_{initial_fraction}_benchmark_plot.png",
+            )
             benchmark.plot_results(dataset_name, str(plot_path))
 
     print(f"\nBenchmark complete! Results saved to {results_dir}")

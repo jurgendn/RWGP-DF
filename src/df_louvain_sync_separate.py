@@ -427,7 +427,6 @@ class GPDynamicFrontierLouvain:
 
         # Only trigger gp_separator on changed/affected communities
         # Optimization: skip bisection for very large communities and use MiniBatchKMeans for large ones
-        import time
         affected_nodes = set(self.get_affected_nodes())
         if not affected_nodes:
             # If no affected nodes, return as is
@@ -442,7 +441,9 @@ class GPDynamicFrontierLouvain:
         affected_subgraph = self.graph.subgraph(affected_subgraph_nodes)
         affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
 
-        separated = separate_communities(affected_subgraph, affected_communities)
+        separated = separate_communities(
+            affected_subgraph, affected_communities, self.get_modularity()
+        )
 
         updated_community = new_community.copy()
         updated_community.update(separated)

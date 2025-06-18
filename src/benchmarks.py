@@ -492,7 +492,7 @@ class DFLouvainBenchmark:
             axes[0, 1].set_title("Runtime Comparison Per Step")
             axes[0, 1].set_xlabel("Time Step")
             axes[0, 1].set_ylabel("Runtime (seconds)")
-            axes[0, 1].set_xticks(time_steps)
+            # axes[0, 1].set_xticks(time_steps)
             axes[0, 1].legend()
             axes[0, 1].grid(True, alpha=0.3)
             # 3. Affected nodes over time

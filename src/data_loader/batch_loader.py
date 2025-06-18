@@ -10,7 +10,10 @@ import pandas as pd
 
 
 def load_sx_mathoverflow_dataset(
-    file_path: str, batch_range: float = 1e-3, initial_fraction: float = 0.3
+    file_path: str,
+    batch_range: float = 1e-3,
+    initial_fraction: float = 0.3,
+    max_steps: int | None = None,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load the College Message dataset and prepare it for dynamic analysis.
@@ -62,12 +65,13 @@ def load_sx_mathoverflow_dataset(
         batch = remaining_edges[i : i + batch_size]
         insertions = [(node1, node2, 1) for node1, node2, _ in batch]
         temporal_changes.append({"deletions": [], "insertions": insertions})
-
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 
 
 def load_college_msg_dataset(
-    file_path: str, batch_range: float = 1e-3, initial_fraction: float = 0.3
+    file_path: str, batch_range: float = 1e-3, initial_fraction: float = 0.3, max_steps: int | None = None
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load the College Message dataset and prepare it for dynamic analysis.
@@ -122,12 +126,16 @@ def load_college_msg_dataset(
         batch = remaining_edges[i : i + batch_size]
         insertions = [(node1, node2, 1) for node1, node2, _ in batch]
         temporal_changes.append({"deletions": [], "insertions": insertions})
-
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 
 
 def load_bitcoin_dataset(
-    file_path: str, batch_range: float = 1e-3, initial_fraction: float = 0.3
+    file_path: str,
+    batch_range: float = 1e-3,
+    initial_fraction: float = 0.3,
+    max_steps: int | None = None,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load Bitcoin datasets (Alpha or OTC) and prepare them for dynamic analysis.
@@ -198,12 +206,16 @@ def load_bitcoin_dataset(
                 insertions.append((source, target, weight))
 
         temporal_changes.append({"deletions": deletions, "insertions": insertions})
-
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
 
 
 def create_synthetic_dynamic_graph(
-    num_nodes: int = 100, initial_edges: int = 200, time_steps: int = 10
+    num_nodes: int = 100,
+    initial_edges: int = 200,
+    time_steps: int = 10,
+    max_steps: int | None = 100,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Create a synthetic dynamic graph for testing purposes.
@@ -274,5 +286,6 @@ def create_synthetic_dynamic_graph(
                 existing_edges.remove(edge)
         for edge in insertion_edges:
             existing_edges.append((edge[0], edge[1]))
-
+    if max_steps is not None:
+        temporal_changes = temporal_changes[:max_steps]
     return G, temporal_changes
