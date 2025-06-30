@@ -248,6 +248,7 @@ class DatasetWindowTimeManager(BaseDatasetManager):
         initial_fraction: float = 0.3,
         max_steps: int | None = None,
         force_reload: bool = False,
+        load_full_nodes: bool = True,
     ) -> Tuple[nx.Graph, List[Dict]]:
         """
         Get a dataset with sliding window-based loading parameters.
@@ -289,6 +290,7 @@ class DatasetWindowTimeManager(BaseDatasetManager):
             step_size=step_size,
             initial_fraction=initial_fraction,
             max_steps=max_steps,
+            load_full_nodes=load_full_nodes,
         )
         
         load_time = time.time() - start_time

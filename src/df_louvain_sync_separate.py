@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 from collections import defaultdict
 from src.community_info import CommunityUtils
-from src.gp_separator import separate_communities
+from src.refining.separator import separate_communities
 
 
 # Chia 1 buoc first
@@ -30,7 +30,7 @@ class GPDynamicFrontierLouvain:
         graph: nx.Graph,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
-        verbose: bool = False,
+        verbose: bool = True,
     ) -> None:
         """
         Initialize Dynamic Frontier Louvain algorithm.
@@ -41,7 +41,7 @@ class GPDynamicFrontierLouvain:
             max_iterations: Maximum iterations per local-moving phase
             verbose: Whether to print progress information
         """
-        self.__shortname__ = "gp-df"
+        self.__shortname__ = "gpdf"
         self.graph = graph.copy()
         self.tolerance = tolerance
         self.max_iterations = max_iterations
@@ -289,9 +289,11 @@ class GPDynamicFrontierLouvain:
                 self.node_to_idx[node] = node_idx
 
                 # Extend arrays for the new node
+                # Each new node starts in its own community, the number of communities increases by 1
                 self.community = np.append(
                     self.community, node_idx
-                )  # Each node starts in its own community
+                )
+
                 self.weighted_degree = np.append(self.weighted_degree, 0.0)
                 self.affected = np.append(self.affected, False)
 
@@ -427,6 +429,7 @@ class GPDynamicFrontierLouvain:
 
         # Only trigger gp_separator on changed/affected communities
         # Optimization: skip bisection for very large communities and use MiniBatchKMeans for large ones
+
         affected_nodes = set(self.get_affected_nodes())
         if not affected_nodes:
             # If no affected nodes, return as is
@@ -440,10 +443,28 @@ class GPDynamicFrontierLouvain:
         affected_subgraph_nodes = [node for node in self.nodes if self.community[self.node_to_idx[node]] in affected_comm_ids]
         affected_subgraph = self.graph.subgraph(affected_subgraph_nodes)
         affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
-
-        separated = separate_communities(
-            affected_subgraph, affected_communities, self.get_modularity()
-        )
+        
+        # TODO: Consider clustering for edges removed/inserted within a community
+        # separated = separate_communities(affected_subgraph, affected_communities)
+        affected_communities = []
+        # for inserted_edge in edge_insertions:
+        #     if new_community.get(inserted_edge[0]) != new_community.get(inserted_edge[1]):
+        #         # If the inserted edge connects two different communities, mark them as affected
+        #         affected_communities.append(new_community.get(inserted_edge[0]))
+        #         affected_communities.append(new_community.get(inserted_edge[1]))
+        for deleted_edge in edge_deletions:
+            if new_community.get(deleted_edge[0]) == new_community.get(deleted_edge[1]):
+                # If the deleted edge connects two different communities, mark them as affected
+                affected_communities.append(new_community.get(deleted_edge[0]))
+                affected_communities.append(new_community.get(deleted_edge[1]))
+        affected_communities = set(affected_communities)
+        if len(affected_communities) == 0:
+            # If no affected communities, return as is
+            return new_community
+        print(f"Deleted {len(edge_deletions)} edges")
+        print(f"Inserted {len(edge_insertions)} edges")
+        print(f"Affected communities: {len(affected_communities)}")
+        separated = separate_communities["v2"](affected_subgraph, affected_communities)
 
         updated_community = new_community.copy()
         updated_community.update(separated)

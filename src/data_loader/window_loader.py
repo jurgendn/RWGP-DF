@@ -71,6 +71,7 @@ def load_sx_mathoverflow_sliding_window(
     step_size: int,
     initial_fraction: float,
     max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load MathOverflow dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -78,6 +79,7 @@ def load_sx_mathoverflow_sliding_window(
     Returns the initial graph and a list of temporal changes (insertions/deletions).
     """
     data = []
+    full_nodes = set()
     with open(file_path, "r") as f:
         for line in f:
             if line.strip() and not line.startswith("//"):
@@ -85,6 +87,8 @@ def load_sx_mathoverflow_sliding_window(
                 if len(parts) >= 3:
                     node1, node2, timestamp = int(parts[0]), int(parts[1]), int(parts[2])
                     data.append((node1, node2, timestamp))
+                    full_nodes.add(node1)
+                    full_nodes.add(node2)
     date_batches = _collect_edges_by_date(data)
     num_dates = len(date_batches)
     # Initial graph: first initial_fraction% of dates
@@ -93,6 +97,13 @@ def load_sx_mathoverflow_sliding_window(
     for i in range(split_point):
         initial_edges.extend(date_batches[i][1])
     G = nx.Graph()
+
+    if load_full_nodes is True:
+        # Ensure all nodes from initial edges are added to the graph
+        for node in full_nodes:
+            if not G.has_node(node):
+                G.add_node(node)
+
     for node1, node2, _ in initial_edges:
         if G.has_edge(node1, node2):
             G[node1][node2]["weight"] += 1
@@ -129,6 +140,7 @@ def load_college_msg_sliding_window(
     step_size: int,
     initial_fraction: float,
     max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load CollegeMsg dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -136,6 +148,7 @@ def load_college_msg_sliding_window(
     Returns the initial graph and a list of temporal changes (insertions/deletions).
     """
     data = []
+    full_nodes = set()
     with open(file_path, "r") as f:
         for line in f:
             if line.strip() and not line.startswith("//"):
@@ -143,6 +156,8 @@ def load_college_msg_sliding_window(
                 if len(parts) >= 3:
                     node1, node2, timestamp = int(parts[0]), int(parts[1]), int(parts[2])
                     data.append((node1, node2, timestamp))
+                    full_nodes.add(node1)
+                    full_nodes.add(node2)
     date_batches = _collect_edges_by_date(data)
     num_dates = len(date_batches)
     # Initial graph: first initial_fraction% of dates
@@ -151,6 +166,10 @@ def load_college_msg_sliding_window(
     for i in range(split_point):
         initial_edges.extend(date_batches[i][1])
     G = nx.Graph()
+    if load_full_nodes is True:
+        for node in full_nodes:
+            if not G.has_node(node):
+                G.add_node(node)
     for node1, node2, _ in initial_edges:
         if G.has_edge(node1, node2):
             G[node1][node2]["weight"] += 1
@@ -182,7 +201,12 @@ def load_college_msg_sliding_window(
     return G, temporal_changes
 
 def load_bitcoin_sliding_window(
-    file_path: str, window_size: int, step_size: int, initial_fraction: float, max_steps: int | None = None
+    file_path: str,
+    window_size: int,
+    step_size: int,
+    initial_fraction: float,
+    max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load Bitcoin dataset as a sequence of graphs using a sliding window over DATES (not raw timestamps).
@@ -197,6 +221,8 @@ def load_bitcoin_sliding_window(
         (int(row["source"]), int(row["target"]), int(row["timestamp"]))
         for _, row in df.iterrows()
     ]
+    
+    full_nodes = set(df["source"]).union(set(df["target"]))
     date_batches = _collect_edges_by_date(data)
     num_dates = len(date_batches)
     # Initial graph: first initial_fraction% of dates
@@ -205,6 +231,11 @@ def load_bitcoin_sliding_window(
     for i in range(split_point):
         initial_edges.extend(date_batches[i][1])
     G = nx.Graph()
+    if load_full_nodes is True:
+        # Ensure all nodes from initial edges are added to the graph
+        for node in full_nodes:
+            if not G.has_node(node):
+                G.add_node(node)
     for node1, node2, _ in initial_edges:
         if G.has_edge(node1, node2):
             G[node1][node2]["weight"] += 1
