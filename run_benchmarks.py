@@ -51,14 +51,18 @@ def main():
     # Create plots for each dataset
     for dataset_name, dataset_config in data_config.items():
         if dataset_name in benchmark.results and dataset_name in target_datasets:
-            batch_range = dataset_config.get("batch_range")
-            initial_fraction = dataset_config.get("initial_fraction")
+            dataset_dir = Path(os.path.join(results_dir, dataset_name))
+            dataset_dir.mkdir(exist_ok=True)
             # Create plot for the dataset
+            if mode == "batch":
+                filename = f"batch_range_{dataset_config['batch_range']}_initial_fraction_{dataset_config['initial_fraction']}_benchmark_plot.png"
+            elif mode == "window_frame":
+                filename = f"step_size_{dataset_config['step_size']}_initial_fraction_{dataset_config['initial_fraction']}_benchmark_plot.png"
             plot_path = os.path.join(
-                results_dir,
-                f"{dataset_name}_batch_range_{batch_range}_initial_fraction_{initial_fraction}_benchmark_plot.png",
+                dataset_dir,
+                filename,
             )
-            benchmark.plot_results(dataset_name, str(plot_path))
+            benchmark.plot_results(dataset_name=dataset_name, save_path=str(plot_path))
 
     print(f"\nBenchmark complete! Results saved to {results_dir}")
     print("\nFiles created:")

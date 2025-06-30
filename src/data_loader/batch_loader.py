@@ -14,6 +14,7 @@ def load_sx_mathoverflow_dataset(
     batch_range: float = 1e-3,
     initial_fraction: float = 0.3,
     max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load the College Message dataset and prepare it for dynamic analysis.
@@ -28,6 +29,7 @@ def load_sx_mathoverflow_dataset(
     """
     # Read the data
     data = []
+    full_nodes = set()
     with open(file_path, "r") as f:
         for line in f:
             if line.strip() and not line.startswith("//"):
@@ -39,6 +41,8 @@ def load_sx_mathoverflow_dataset(
                         int(parts[2]),
                     )
                     data.append((node1, node2, timestamp))
+                    full_nodes.add(node1)
+                    full_nodes.add(node2)
 
     # Sort by timestamp
     data.sort(key=lambda x: x[2])
@@ -47,8 +51,12 @@ def load_sx_mathoverflow_dataset(
     split_point = int(len(data) * initial_fraction)
     initial_edges = data[:split_point]
 
-    # Add all nodes to graph
     G = nx.Graph()
+    
+    # Add all nodes to graph if load_full_nodes is True else only initial nodes
+    if load_full_nodes is True:
+        for node in full_nodes:
+            G.add_node(node)
 
     for node1, node2, _ in initial_edges:
         if G.has_edge(node1, node2):
@@ -71,7 +79,11 @@ def load_sx_mathoverflow_dataset(
 
 
 def load_college_msg_dataset(
-    file_path: str, batch_range: float = 1e-3, initial_fraction: float = 0.3, max_steps: int | None = None
+    file_path: str,
+    batch_range: float = 1e-3,
+    initial_fraction: float = 0.3,
+    max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load the College Message dataset and prepare it for dynamic analysis.
@@ -86,6 +98,7 @@ def load_college_msg_dataset(
     """
     # Read the data
     data = []
+    full_nodes = set()
     with open(file_path, "r") as f:
         for line in f:
             if line.strip() and not line.startswith("//"):
@@ -97,6 +110,8 @@ def load_college_msg_dataset(
                         int(parts[2]),
                     )
                     data.append((node1, node2, timestamp))
+                    full_nodes.add(node1)
+                    full_nodes.add(node2)
 
     # Sort by timestamp
     data.sort(key=lambda x: x[2])
@@ -107,9 +122,10 @@ def load_college_msg_dataset(
 
     # Add all nodes to graph
     G = nx.Graph()
-    # G.add_nodes_from(
-    #     set(node1 for node1, _, _ in data).union(set(node2 for _, node2, _ in data))
-    # )
+    # Add all nodes to graph if load_full_nodes is True else only initial nodes
+    if load_full_nodes is True:
+        for node in full_nodes:
+            G.add_node(node)
 
     for node1, node2, _ in initial_edges:
         if G.has_edge(node1, node2):
@@ -136,6 +152,7 @@ def load_bitcoin_dataset(
     batch_range: float = 1e-3,
     initial_fraction: float = 0.3,
     max_steps: int | None = None,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Load Bitcoin datasets (Alpha or OTC) and prepare them for dynamic analysis.
@@ -155,13 +172,17 @@ def load_bitcoin_dataset(
 
     # Sort by timestamp
     df = df.sort_values("timestamp")
-
+    full_nodes = set(df["source"]).union(set(df["target"]))
     # Create initial graph with first 40% of edges
     split_point = len(df) // 5 * 2
     initial_data = df.iloc[:split_point]
 
     # Add all nodes to graph
     G = nx.Graph()
+    # Add all nodes to graph if load_full_nodes is True else only initial nodes
+    if load_full_nodes is True:
+        for node in full_nodes:
+            G.add_node(node)
     # G.add_nodes_from(set(df["source"]).union(set(df["target"])))
     for _, row in initial_data.iterrows():
         source, target, rating = (
@@ -216,6 +237,7 @@ def create_synthetic_dynamic_graph(
     initial_edges: int = 200,
     time_steps: int = 10,
     max_steps: int | None = 100,
+    load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[Dict]]:
     """
     Create a synthetic dynamic graph for testing purposes.
