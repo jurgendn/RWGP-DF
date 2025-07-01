@@ -9,6 +9,9 @@ __pycache__/
 # Dataset
 dataset/
 
+# Logging
+wandb/
+
 # Notebooks
 .ipynb_checkpoints
 notebooks

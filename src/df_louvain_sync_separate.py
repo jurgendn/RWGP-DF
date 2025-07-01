@@ -30,6 +30,7 @@ class GPDynamicFrontierLouvain:
         graph: nx.Graph,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
+        refine_version: str = "v2",
         verbose: bool = True,
     ) -> None:
         """
@@ -48,6 +49,7 @@ class GPDynamicFrontierLouvain:
         self.verbose = verbose
         self.nodes = list(graph.nodes())
         self.node_to_idx = {node: idx for idx, node in enumerate(self.nodes)}
+        self.refine_version = refine_version
 
         # Initialize communities using NetworkX's Louvain algorithm
         communities_dict = CommunityUtils.initialize_communities_with_networkx(
@@ -447,24 +449,36 @@ class GPDynamicFrontierLouvain:
         # TODO: Consider clustering for edges removed/inserted within a community
         # separated = separate_communities(affected_subgraph, affected_communities)
         affected_communities = []
-        # for inserted_edge in edge_insertions:
-        #     if new_community.get(inserted_edge[0]) != new_community.get(inserted_edge[1]):
-        #         # If the inserted edge connects two different communities, mark them as affected
-        #         affected_communities.append(new_community.get(inserted_edge[0]))
-        #         affected_communities.append(new_community.get(inserted_edge[1]))
+        for inserted_edge in edge_insertions:
+            if new_community.get(inserted_edge[0]) != new_community.get(inserted_edge[1]):
+                # If the inserted edge connects two different communities, mark them as affected
+                affected_communities.append(new_community.get(inserted_edge[0]))
+                affected_communities.append(new_community.get(inserted_edge[1]))
         for deleted_edge in edge_deletions:
             if new_community.get(deleted_edge[0]) == new_community.get(deleted_edge[1]):
                 # If the deleted edge connects two different communities, mark them as affected
                 affected_communities.append(new_community.get(deleted_edge[0]))
                 affected_communities.append(new_community.get(deleted_edge[1]))
         affected_communities = set(affected_communities)
+        
+        # If no affected communities, return as is
         if len(affected_communities) == 0:
-            # If no affected communities, return as is
             return new_community
-        print(f"Deleted {len(edge_deletions)} edges")
-        print(f"Inserted {len(edge_insertions)} edges")
-        print(f"Affected communities: {len(affected_communities)}")
-        separated = separate_communities["v2"](affected_subgraph, affected_communities)
+        
+        # print(f"Deleted {len(edge_deletions)} edges")
+        # print(f"Inserted {len(edge_insertions)} edges")
+        # print(f"Affected communities: {len(affected_communities)}")
+
+        # Set self.affected[i] = 1 for all nodes in affected_subgraph
+        for node in affected_subgraph_nodes:
+            node_idx = self.node_to_idx[node]
+            self.affected[node_idx] = True
+        separated = separate_communities[self.refine_version](
+            affected_subgraph, affected_communities
+        )
+        # separated = separate_communities[self.refine_version](
+        #     self.graph, affected_communities
+        # )
 
         updated_community = new_community.copy()
         updated_community.update(separated)
