@@ -14,6 +14,7 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
     Returns:
         Dict[int, int]: Updated community assignments for nodes.
     """
+
     def compute_modularity(graph: nx.Graph, community: List[int]) -> float:
         """
         Computes the modularity of a given community within the graph.
@@ -88,26 +89,25 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
             Tuple[List[int], List[int]]: Two sub-communities resulting from the split.
         """
         nodes = list(community)
-        index = {node: i for i, node in enumerate(nodes)}
+        # index = {node: i for i, node in enumerate(nodes)}
         n = len(nodes)
-        adjacency_matrix = np.zeros((n, n))
-        for u in nodes:
-            for v in graph[u]:
-                if v in index:
-                    i = index[u]
-                    j = index[v]
-                    adjacency_matrix[i, j] = 1
+        # Create adjacency matrix more efficiently using vectorized operations
+        subgraph = graph.subgraph(nodes)
+        adjacency_matrix = nx.adjacency_matrix(subgraph, nodelist=nodes).toarray()
         degrees = adjacency_matrix.sum(axis=1)
         P = (adjacency_matrix.T / degrees).T
         P_t0 = P[0, :].copy()
         for _ in range(steps):
             P_t0 = P_t0 @ P
         threshold = degrees / degrees.sum()
+
         V1 = [nodes[i] for i in range(n) if P_t0[i] >= threshold[i]]
         V2 = [nodes[i] for i in range(n) if P_t0[i] < threshold[i]]
         return V1, V2
 
-    def adjust_communities(graph: nx.Graph, community1: List[int], community2: List[int], degrees: Dict[int, int], total_edges: int) -> Tuple[int, List[int], List[int]]:
+
+    def adjust_communities(graph: nx.Graph, community1: List[int], community2: List[int], 
+                        degrees: Dict[int, int], total_edges: int) -> Tuple[int, List[int], List[int]]:
         """
         Adjusts two sub-communities by moving nodes to optimize modularity.
 
@@ -121,20 +121,37 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         Returns:
             Tuple[int, List[int], List[int]]: Number of adjustments made and the updated sub-communities.
         """
-        C1 = community1.copy()
-        C2 = community2.copy()
-        adjustments = 0
-        moved_to_C2 = [i for i in C1 if delta_modularity_keep(graph, C1, i, degrees, total_edges) < delta_modularity_add(graph, C2, i, degrees, total_edges)]
-        for i in moved_to_C2:
-            C1.remove(i)
-            C2.append(i)
-            adjustments += 1
-        moved_to_C1 = [i for i in C2 if delta_modularity_keep(graph, C2, i, degrees, total_edges) < delta_modularity_add(graph, C1, i, degrees, total_edges)]
-        for i in moved_to_C1:
-            C2.remove(i)
-            C1.append(i)
-            adjustments += 1
-        return adjustments, C1, C2
+        # Use sets for O(1) membership testing and removal
+        C1 = set(community1)
+        C2 = set(community2)
+        
+        # Batch collect nodes to move
+        moves_to_C2 = []
+        moves_to_C1 = []
+        
+        # Single pass through each community to determine moves
+        for node in C1:
+            delta_keep = delta_modularity_keep(graph, C1, node, degrees, total_edges)
+            delta_add = delta_modularity_add(graph, C2, node, degrees, total_edges)
+            if delta_keep < delta_add:
+                moves_to_C2.append(node)
+        
+        for node in C2:
+            delta_keep = delta_modularity_keep(graph, C2, node, degrees, total_edges)
+            delta_add = delta_modularity_add(graph, C1, node, degrees, total_edges)
+            if delta_keep < delta_add:
+                moves_to_C1.append(node)
+        
+        # Execute all moves
+        C1.difference_update(moves_to_C2)  # Remove all nodes moving to C2
+        C2.update(moves_to_C2)             # Add all nodes moving to C2
+        
+        C2.difference_update(moves_to_C1)  # Remove all nodes moving to C1
+        C1.update(moves_to_C1)             # Add all nodes moving to C1
+        
+        total_adjustments = len(moves_to_C2) + len(moves_to_C1)
+        
+        return total_adjustments, list(C1), list(C2)
 
     def refine_partition(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int) -> Tuple[List[int], List[int]]:
         """
@@ -172,33 +189,40 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         """
         if set(community1) == set(original_community) or set(community2) == set(original_community):
             return True
-        return (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community)) <= 0
+        return (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community)) >= 0
 
-    def recursive_divide(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int, partition: Dict[int, int]):
-        """
-        Recursively divides a community into sub-communities.
+    # def recursive_divide(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int, partition: Dict[int, int]):
+    #     """
+    #     Recursively divides a community into sub-communities.
 
-        Args:
-            graph (nx.Graph): The input graph.
-            community (List[int]): List of nodes in the community to be divided.
-            degrees (Dict[int, int]): Node degrees.
-            total_edges (int): Total number of edges in the graph.
-            partition (Dict[int, int]): Community assignments for nodes.
-        """
-        C1, C2 = refine_partition(graph, community, degrees, total_edges)
-        is_valid_division = validate_division(graph, C1, C2, community)
-        if is_valid_division or len(C1) == 0 or len(C2) == 0:
-            new_community_id = max(partition.values(), default=0) + 1
-            for node in community:
-                partition[node] = new_community_id
-        else:
-            recursive_divide(graph, C1, degrees, total_edges, partition)
-            recursive_divide(graph, C2, degrees, total_edges, partition)
+    #     Args:
+    #         graph (nx.Graph): The input graph.
+    #         community (List[int]): List of nodes in the community to be divided.
+    #         degrees (Dict[int, int]): Node degrees.
+    #         total_edges (int): Total number of edges in the graph.
+    #         partition (Dict[int, int]): Community assignments for nodes.
+    #     """
+    #     C1, C2 = refine_partition(graph, community, degrees, total_edges)
+    #     is_valid_division = validate_division(graph, C1, C2, community)
+    #     if is_valid_division or len(C1) == 0 or len(C2) == 0:
+    #         new_community_id = max(partition.values(), default=0) + 1
+    #         for node in community:
+    #             partition[node] = new_community_id
+    #     else:
+    #         recursive_divide(graph, C1, degrees, total_edges, partition)
+    #         recursive_divide(graph, C2, degrees, total_edges, partition)
 
     # Begin algorithm
-    node_list = list(graph.nodes)
-    degrees = {node: graph.degree[node] for node in graph.nodes}
-    total_edges = graph.number_of_edges()
-    partition = {}
-    recursive_divide(graph, node_list, degrees, total_edges, partition)
+    partition = {node: comm_id for node, comm_id in communities.items()}
+
+    for community_id in set(communities.values()):
+        nodes_in_community = [node for node, comm_id in communities.items() if comm_id == community_id]
+        if len(nodes_in_community) > 1:
+            C1, C2 = split_community(graph, nodes_in_community)
+            if validate_division(graph, C1, C2, nodes_in_community):
+                for node in C1:
+                    partition[node] = community_id
+                for node in C2:
+                    partition[node] = community_id + 1
+
     return partition

@@ -11,15 +11,15 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
+import wandb
 from matplotlib import colormaps
+from tqdm.auto import tqdm
 
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
 from src.df_louvain import (
     DynamicFrontierLouvain,
     GPDynamicFrontierLouvain,
 )
-
 
 warnings.filterwarnings("ignore")
 
@@ -324,7 +324,7 @@ class DFLouvainBenchmark:
                 results[method_name]["runtimes"].append(step_runtime)
                 results[method_name]["modularities"].append(step_modularity)
                 results[method_name]["affected_nodes"].append(step_affected_nodes)
-            
+
             # Update current graph for NetworkX
             for edge in deletions:
                 if current_graph.has_edge(*edge):
@@ -364,6 +364,29 @@ class DFLouvainBenchmark:
                 
             progress_bar.set_postfix(ordered_dict=intermediate_value)
 
+            wandb.log(
+                {
+                    "step": i + 1,
+                    "nx_modularity": nx_modularity,
+                    "nx_runtime": nx_step_runtime,
+                    **{
+                        f"{method_name}_modularity": results[method_name][
+                            "modularities"
+                        ][-1]
+                        for method_name in methods.keys()
+                    },
+                    **{
+                        f"{method_name}_runtime": results[method_name]["runtimes"][-1]
+                        for method_name in methods.keys()
+                    },
+                    **{
+                        f"{method_name}_affected_nodes": results[method_name][
+                            "affected_nodes"
+                        ][-1]
+                        for method_name in methods.keys()
+                    },
+                }
+            )
 
         results["general"]["total_runtime"] = time.time() - total_start_time
         # Calculate summary statistics for each method
@@ -466,8 +489,8 @@ class DFLouvainBenchmark:
                 modularities = dynamic[method_name]["modularities"]
                 # 1. Modularity comparison over time (line plot)
                 axes[0, 0].plot(
-                    time_steps,
-                    modularities,
+                    time_steps[1:],
+                    modularities[1:],
                     label=method_name,
                     color=color_map(idx % 10),
                     linewidth=1,
@@ -499,8 +522,8 @@ class DFLouvainBenchmark:
             if method_name not in ["general", "nx"]:
                 affected_nodes = dynamic[method_name]["affected_nodes"]
                 axes[1, 0].plot(
-                    time_steps[:-1],
-                    affected_nodes,
+                    time_steps[:-2],
+                    affected_nodes[1:],
                     label=method_name,
                     linewidth=2,
                     alpha=0.75,
@@ -509,7 +532,8 @@ class DFLouvainBenchmark:
                 "Affected Nodes Per Step (DF Louvain vs GP-DF Louvain)"
             )
             axes[1, 0].set_xlabel("Time Step")
-            axes[1, 0].set_xticks(time_steps[:-1])
+            axes[1, 0].set_xticks(range(0, len(time_steps[:-1]), 10))
+            axes[1, 0].tick_params(axis='x', rotation=-45)
             axes[1, 0].legend()
             axes[1, 0].set_ylabel("Number of Affected Nodes")
             axes[1, 0].grid(True, alpha=0.3)
@@ -626,12 +650,28 @@ def run_comprehensive_benchmark(
     for dataset_name, dataset_config in config.items():
         if dataset_name not in target_datasets:
             continue
+        print(f"Running benchmark for dataset: {dataset_name}")
+        wandb.init(
+            project="gp-df-louvain",
+            reinit=True,
+            config={
+                "dataset_name": dataset_name,
+                "dataset_config": dataset_config,
+            },
+        )
+        if dataset_name not in target_datasets:
+            continue
+        full_nodes_config = dataset_config.copy()
+        full_nodes_config["load_full_nodes"] = True
+        # G_full, temporal_changes = data_manager.get_dataset(**full_nodes_config)
         G, temporal_changes = data_manager.get_dataset(**dataset_config)
         methods = {
-            "Dynamic Frontier Louvain": DynamicFrontierLouvain(graph=G, verbose=False),
-            "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+            "Dynamic Frontier Louvain": DynamicFrontierLouvain(
                 graph=G, verbose=False
             ),
+            # "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+            #     graph=G, verbose=False, refine_version="v2"
+            # ),
         }
         benchmark.benchmark_dataset(
             methods=methods,
@@ -639,5 +679,6 @@ def run_comprehensive_benchmark(
             G=G,
             temporal_changes=temporal_changes,
         )
+        wandb.finish()
 
     return benchmark

@@ -1,14 +1,16 @@
 """
 Main script to run DFLouvain benchmarks on the provided datasets.
 """
-
 import os
 from pathlib import Path
 
+import pandas as pd
+import tabulate
 import yaml
 
 from src.benchmarks import run_comprehensive_benchmark
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
+from src.utils import helpers
 
 
 def main():
@@ -54,10 +56,10 @@ def main():
             dataset_dir = Path(os.path.join(results_dir, dataset_name))
             dataset_dir.mkdir(exist_ok=True)
             # Create plot for the dataset
-            if mode == "batch":
-                filename = f"batch_range_{dataset_config['batch_range']}_initial_fraction_{dataset_config['initial_fraction']}_benchmark_plot.png"
-            elif mode == "window_frame":
-                filename = f"step_size_{dataset_config['step_size']}_initial_fraction_{dataset_config['initial_fraction']}_benchmark_plot.png"
+            filename = helpers.generate_plot_filename(
+                mode=mode,
+                dataset_config=dataset_config,
+            )
             plot_path = os.path.join(
                 dataset_dir,
                 filename,
@@ -66,10 +68,7 @@ def main():
 
     print(f"\nBenchmark complete! Results saved to {results_dir}")
     print("\nFiles created:")
-    print("  - benchmark_results.csv: Summary statistics")
-    for dataset_name in data_config.keys():
-        if dataset_name in benchmark.results:
-            print(f"  - {dataset_name}_benchmark_plots.png: Visualization plots")
+
 
 
 if __name__ == "__main__":
