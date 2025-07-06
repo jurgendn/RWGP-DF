@@ -4,42 +4,58 @@ mode: "window_frame" # Options: "batch", "window_frame"
 default_configs:
   load_full_nodes: &load_full_node false # Options: true, false
   max_steps: &max_steps 200 # Maximum number of steps for the benchmark
-  initial_fraction: &initial_fraction 0.4 # Initial fraction of nodes to consider in the benchmark
+  initial_fraction: &initial_fraction 0.5 # Initial fraction of nodes to consider in the benchmark
 
 # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
 target_datasets:
+  # - email-eu-core
+  - sx-askubuntu
   # - sx-mathoverflow
-  - college_msg
-  - bitcoin_alpha
-  - bitcoin_otc
+  # - college_msg
+  # - bitcoin_alpha
+  # - bitcoin_otc
 batch_data_manager:
   college_msg:
     dataset_path: dataset/CollegeMsg.txt
     dataset_type: college_msg
     batch_range: 0.0001
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
+    load_full_nodes: *load_full_node
+  email-eu-core:
+    dataset_path: dataset/email-Eu-core-temporal.txt
+    dataset_type: email-eu-core
+    batch_range: 0.0001
+    initial_fraction: *initial_fraction
+    max_steps: *max_steps
+    load_full_nodes: *load_full_node
+  sx-askubuntu:
+    dataset_path: dataset/sx-askubuntu.txt
+    dataset_type: email-eu-core
+    batch_range: 0.0001
+    initial_fraction: *initial_fraction
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   bitcoin_alpha:
     dataset_path: dataset/soc-sign-bitcoinalpha.csv
     dataset_type: bitcoin_alpha
     batch_range: 0.0001
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   bitcoin_otc:
     dataset_path: dataset/soc-sign-bitcoinotc.csv
     dataset_type: bitcoin_otc
     batch_range: 0.001
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   sx-mathoverflow:
     dataset_path: dataset/sx-mathoverflow.txt
     dataset_type: sx-mathoverflow
     batch_range: 0.0001
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
 window_frame_data_manager:
   college_msg:
@@ -48,15 +64,31 @@ window_frame_data_manager:
     window_size: 30
     step_size: 2
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
+    load_full_nodes: *load_full_node
+  email-eu-core:
+    dataset_path: dataset/email-Eu-core-temporal.txt
+    dataset_type: email-eu-core
+    window_size: 30
+    step_size: 5
+    initial_fraction: *initial_fraction
+    max_steps: *max_steps
+    load_full_nodes: *load_full_node
+  sx-askubuntu:
+    dataset_path: dataset/sx-askubuntu.txt
+    dataset_type: email-eu-core
+    window_size: 5
+    step_size: 1
+    initial_fraction: *initial_fraction
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   bitcoin_alpha:
     dataset_path: dataset/soc-sign-bitcoinalpha.csv
     dataset_type: bitcoin_alpha
-    window_size: 30
-    step_size: 2
+    window_size: 20
+    step_size: 5
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   bitcoin_otc:
     dataset_path: dataset/soc-sign-bitcoinotc.csv
@@ -64,7 +96,7 @@ window_frame_data_manager:
     window_size: 30
     step_size: 2
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node
   sx-mathoverflow:
     dataset_path: dataset/sx-mathoverflow.txt
@@ -72,5 +104,5 @@ window_frame_data_manager:
     window_size: 30
     step_size: 1
     initial_fraction: *initial_fraction
-    max_steps: *max_steps 
+    max_steps: *max_steps
     load_full_nodes: *load_full_node

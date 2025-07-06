@@ -178,7 +178,7 @@ class CommunityUtils:
             CommunityUtils.get_communities_as_sets(communities=communities).values()
         )
         return nx.algorithms.community.modularity(
-            G=graph, communities=community_sets, weight="weight"
+            G=graph, communities=community_sets
         )
 
     @staticmethod

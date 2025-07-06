@@ -76,7 +76,7 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         delta_q = (l_iC / total_edges) - (d_node * sum_kj) / (4 * total_edges * total_edges)
         return delta_q
 
-    def split_community(graph: nx.Graph, community: List[int], steps: int = 3) -> Tuple[List[int], List[int]]:
+    def split_community(graph: nx.Graph, community: List[int], steps: int = 5) -> Tuple[List[int], List[int]]:
         """
         Splits a community into two sub-communities using a random walk-based approach.
 
@@ -189,33 +189,40 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         """
         if set(community1) == set(original_community) or set(community2) == set(original_community):
             return True
-        return (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community)) <= 0
+        return (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community)) >= 0
 
-    def recursive_divide(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int, partition: Dict[int, int]):
-        """
-        Recursively divides a community into sub-communities.
+    # def recursive_divide(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int, partition: Dict[int, int]):
+    #     """
+    #     Recursively divides a community into sub-communities.
 
-        Args:
-            graph (nx.Graph): The input graph.
-            community (List[int]): List of nodes in the community to be divided.
-            degrees (Dict[int, int]): Node degrees.
-            total_edges (int): Total number of edges in the graph.
-            partition (Dict[int, int]): Community assignments for nodes.
-        """
-        C1, C2 = refine_partition(graph, community, degrees, total_edges)
-        is_valid_division = validate_division(graph, C1, C2, community)
-        if is_valid_division or len(C1) == 0 or len(C2) == 0:
-            new_community_id = max(partition.values(), default=0) + 1
-            for node in community:
-                partition[node] = new_community_id
-        else:
-            recursive_divide(graph, C1, degrees, total_edges, partition)
-            recursive_divide(graph, C2, degrees, total_edges, partition)
+    #     Args:
+    #         graph (nx.Graph): The input graph.
+    #         community (List[int]): List of nodes in the community to be divided.
+    #         degrees (Dict[int, int]): Node degrees.
+    #         total_edges (int): Total number of edges in the graph.
+    #         partition (Dict[int, int]): Community assignments for nodes.
+    #     """
+    #     C1, C2 = refine_partition(graph, community, degrees, total_edges)
+    #     is_valid_division = validate_division(graph, C1, C2, community)
+    #     if is_valid_division or len(C1) == 0 or len(C2) == 0:
+    #         new_community_id = max(partition.values(), default=0) + 1
+    #         for node in community:
+    #             partition[node] = new_community_id
+    #     else:
+    #         recursive_divide(graph, C1, degrees, total_edges, partition)
+    #         recursive_divide(graph, C2, degrees, total_edges, partition)
 
     # Begin algorithm
-    node_list = list(graph.nodes)
-    degrees = {node: graph.degree[node] for node in graph.nodes}
-    total_edges = graph.number_of_edges()
-    partition = {}
-    recursive_divide(graph, node_list, degrees, total_edges, partition)
+    partition = {node: comm_id for node, comm_id in communities.items()}
+
+    for community_id in set(communities.values()):
+        nodes_in_community = [node for node, comm_id in communities.items() if comm_id == community_id]
+        if len(nodes_in_community) > 1:
+            C1, C2 = split_community(graph, nodes_in_community)
+            if validate_division(graph, C1, C2, nodes_in_community):
+                for node in C1:
+                    partition[node] = community_id
+                for node in C2:
+                    partition[node] = community_id + 1
+
     return partition

@@ -4,14 +4,16 @@ Synchronous Dynamic Frontier Louvain algorithm implementation.
 This module provides the synchronous implementation of the Dynamic Frontier Louvain
 algorithm for community detection in dynamic networks.
 """
+from collections import defaultdict
+from time import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from typing import Dict, List, Tuple, Optional, Callable, Any
 import networkx as nx
 import numpy as np
-from collections import defaultdict
+
+import wandb
 from src.community_info import CommunityUtils
 from src.refining.separator import separate_communities
-
 
 # Chia 1 buoc first
 
@@ -318,6 +320,9 @@ class GPDynamicFrontierLouvain:
             edge_deletions: List of edges to delete [(node1, node2), ...]
             edge_insertions: List of edges to insert [(node1, node2, weight), ...]
         """
+        # Start timing the batch update
+
+
         # Reset affected vertices
         self.affected.fill(False)
 
@@ -413,8 +418,11 @@ class GPDynamicFrontierLouvain:
         Returns:
             Dictionary mapping nodes to community IDs
         """
+        # Start timing the algorithm
+        start_time = time()
+
         # Apply batch update
-        if edge_deletions or edge_insertions:
+        if edge_deletions is not None or edge_insertions is not None:
             self.apply_batch_update(edge_deletions, edge_insertions)
 
         # Define lambda functions for affected vertices
@@ -428,60 +436,87 @@ class GPDynamicFrontierLouvain:
 
         # Build current community assignment
         new_community = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        df_modularity = self.get_modularity()
 
-        # Only trigger gp_separator on changed/affected communities
-        # Optimization: skip bisection for very large communities and use MiniBatchKMeans for large ones
-
+        # DF Louvain runtime
+        df_runtime = time() - start_time
         affected_nodes = set(self.get_affected_nodes())
+        df_affected_nodes = len(affected_nodes)
         if not affected_nodes:
             # If no affected nodes, return as is
             return new_community
 
-        # Find affected community ids
-        affected_comm_ids = set(
-            self.community[self.node_to_idx[node]] for node in affected_nodes
-        )
-        # Build subgraph and sub-community mapping for affected communities
-        affected_subgraph_nodes = [node for node in self.nodes if self.community[self.node_to_idx[node]] in affected_comm_ids]
-        affected_subgraph = self.graph.subgraph(affected_subgraph_nodes)
-        affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
-        
-        # TODO: Consider clustering for edges removed/inserted within a community
-        # separated = separate_communities(affected_subgraph, affected_communities)
         affected_communities = []
         for inserted_edge in edge_insertions:
-            if new_community.get(inserted_edge[0]) != new_community.get(inserted_edge[1]):
+            if len(inserted_edge) == 2:
+                node1, node2 = inserted_edge
+            else:
+                node1, node2 = inserted_edge[0], inserted_edge[1]
+            if new_community.get(node1) != new_community.get(node2):
                 # If the inserted edge connects two different communities, mark them as affected
-                affected_communities.append(new_community.get(inserted_edge[0]))
-                affected_communities.append(new_community.get(inserted_edge[1]))
+                affected_communities.append(new_community.get(node1))
+                affected_communities.append(new_community.get(node2))
         for deleted_edge in edge_deletions:
             if new_community.get(deleted_edge[0]) == new_community.get(deleted_edge[1]):
                 # If the deleted edge connects two different communities, mark them as affected
                 affected_communities.append(new_community.get(deleted_edge[0]))
                 affected_communities.append(new_community.get(deleted_edge[1]))
-        affected_communities = set(affected_communities)
         
+        # Find affected community ids
+        affected_comm_ids = set(
+            self.community[self.node_to_idx[node]] for node in affected_nodes
+        )
+        # Build subgraph and sub-community mapping for affected communities
+        affected_communities = set(affected_communities)
+        affected_subgraph_nodes = [node for node in self.nodes if self.community[self.node_to_idx[node]] in affected_comm_ids]
+        affected_subgraph = self.graph.subgraph(affected_subgraph_nodes)
+        affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
         # If no affected communities, return as is
         if len(affected_communities) == 0:
             return new_community
-        
-        # print(f"Deleted {len(edge_deletions)} edges")
-        # print(f"Inserted {len(edge_insertions)} edges")
-        # print(f"Affected communities: {len(affected_communities)}")
 
-        # Set self.affected[i] = 1 for all nodes in affected_subgraph
         for node in affected_subgraph_nodes:
             node_idx = self.node_to_idx[node]
             self.affected[node_idx] = True
+        # GPDF Louvain affected nodes
+        affected_nodes = self.get_affected_nodes()
+
         separated = separate_communities[self.refine_version](
             affected_subgraph, affected_communities
         )
+
         # separated = separate_communities[self.refine_version](
         #     self.graph, affected_communities
         # )
-
+        # TODO: G = (V, E)
+        # DF Louvain: G' = (V', E')
+        # where V = V' + {new_nodes}
         updated_community = new_community.copy()
         updated_community.update(separated)
+        # Update self.community with the new community assignments
+        for node, community_id in updated_community.items():
+            if node in self.node_to_idx:
+                node_idx = self.node_to_idx[node]
+                self.community[node_idx] = community_id
+
+        # GP DF Louvain runtime
+        gp_runtime = time() - start_time
+        gp_df_modularity = CommunityUtils.calculate_modularity(
+            self.graph, updated_community
+        )
+        if wandb.run is not None:
+            wandb.log(
+                {
+                    "df_modularity": df_modularity,
+                    "gp_df_modularity": gp_df_modularity,
+                    "df_runtime": df_runtime,
+                    "gp_df_runtime": gp_runtime,
+                    "affected_nodes": len(affected_nodes),
+                    "df_affected_nodes": df_affected_nodes,
+                    "gp_df_affected_nodes": len(affected_subgraph_nodes),
+                },
+                step=wandb.run.step,
+            )
         return updated_community
         
 

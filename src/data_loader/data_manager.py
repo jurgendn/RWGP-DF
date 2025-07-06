@@ -159,6 +159,8 @@ class DatasetBatchManager(BaseDatasetManager):
             "bitcoin_alpha": load_bitcoin_dataset,
             "bitcoin_otc": load_bitcoin_dataset,
             "sx-mathoverflow": load_sx_mathoverflow_dataset,
+            "email-eu-core": load_college_msg_dataset,
+            "sx-askubuntu": load_college_msg_sliding_window,
         }
     def get_dataset(
         self,
@@ -238,6 +240,8 @@ class DatasetWindowTimeManager(BaseDatasetManager):
             "bitcoin_alpha": load_bitcoin_sliding_window,
             "bitcoin_otc": load_bitcoin_sliding_window,
             "sx-mathoverflow": load_sx_mathoverflow_sliding_window,
+            "email-eu-core": load_college_msg_sliding_window,
+            "sx-askubuntu": load_college_msg_sliding_window,
         }
     def get_dataset(
         self,

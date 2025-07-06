@@ -648,6 +648,9 @@ def run_comprehensive_benchmark(
     benchmark = DFLouvainBenchmark(verbose=False)
 
     for dataset_name, dataset_config in config.items():
+        if dataset_name not in target_datasets:
+            continue
+        print(f"Running benchmark for dataset: {dataset_name}")
         wandb.init(
             project="gp-df-louvain",
             reinit=True,
@@ -660,15 +663,15 @@ def run_comprehensive_benchmark(
             continue
         full_nodes_config = dataset_config.copy()
         full_nodes_config["load_full_nodes"] = True
-        G_full, temporal_changes = data_manager.get_dataset(**full_nodes_config)
+        # G_full, temporal_changes = data_manager.get_dataset(**full_nodes_config)
         G, temporal_changes = data_manager.get_dataset(**dataset_config)
         methods = {
             "Dynamic Frontier Louvain": DynamicFrontierLouvain(
-                graph=G_full, verbose=False
+                graph=G, verbose=False
             ),
-            "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
-                graph=G, verbose=False, refine_version="v2"
-            ),
+            # "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+            #     graph=G, verbose=False, refine_version="v2"
+            # ),
         }
         benchmark.benchmark_dataset(
             methods=methods,
