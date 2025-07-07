@@ -20,6 +20,8 @@ from src.df_louvain import (
     DynamicFrontierLouvain,
     GPDynamicFrontierLouvain,
 )
+from src.naive_dynamic import NaiveDynamicLouvain
+from src.delta_screening import DeltaScreeningLouvain
 
 warnings.filterwarnings("ignore")
 
@@ -94,7 +96,7 @@ class DFLouvainBenchmark:
 
     def benchmark_dataset(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain | NaiveDynamicLouvain | DeltaScreeningLouvain],
         dataset_name: Text,
         G: nx.Graph,
         temporal_changes: Dict[Text, List[List]],
@@ -150,7 +152,7 @@ class DFLouvainBenchmark:
 
     def _benchmark_static_comparison(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain | NaiveDynamicLouvain | DeltaScreeningLouvain],
         G: nx.Graph,
     ) -> Dict[str, Any]:
         """
@@ -182,7 +184,15 @@ class DFLouvainBenchmark:
         # Run all methods
         for method_name, method_instance in methods.items():
             start_time = time.time()
-            communities_dict = method_instance.run_dynamic_frontier_louvain()
+            
+            # Call the appropriate method based on the algorithm type
+            if isinstance(method_instance, NaiveDynamicLouvain):
+                communities_dict = method_instance.run_naive_dynamic_louvain()
+            elif isinstance(method_instance, DeltaScreeningLouvain):
+                communities_dict = method_instance.run_delta_screening_louvain()
+            else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                communities_dict = method_instance.run_dynamic_frontier_louvain()
+            
             modularity = method_instance.get_modularity()
             runtime = time.time() - start_time
 
@@ -230,7 +240,7 @@ class DFLouvainBenchmark:
                     )
             
             print(
-                f"NetworkX: Modularity={results['nx']['modularity']:.4f}, Runtime={results['nx']['runtime']:.3f}s, Communities={results['networkx']['num_communities']}"
+                f"NetworkX: Modularity={results['nx']['modularity']:.4f}, Runtime={results['nx']['runtime']:.3f}s, Communities={results['nx']['num_communities']}"
             )
             
             # Print comparison metrics
@@ -244,7 +254,7 @@ class DFLouvainBenchmark:
 
     def _benchmark_dynamic_performance(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain | NaiveDynamicLouvain | DeltaScreeningLouvain],
         G: nx.Graph,
         temporal_changes: List[Dict],
     ) -> Dict[str, Any]:
@@ -285,7 +295,15 @@ class DFLouvainBenchmark:
         for method_name, method_instance in methods.items():
             # Initialize results for each method
             start_time = time.time()
-            method_instance.run_dynamic_frontier_louvain()
+            
+            # Call the appropriate method based on the algorithm type
+            if isinstance(method_instance, NaiveDynamicLouvain):
+                method_instance.run_naive_dynamic_louvain()
+            elif isinstance(method_instance, DeltaScreeningLouvain):
+                method_instance.run_delta_screening_louvain()
+            else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                method_instance.run_dynamic_frontier_louvain()
+            
             initial_time = time.time() - start_time
             initial_modularity = method_instance.get_modularity()
             
@@ -316,9 +334,24 @@ class DFLouvainBenchmark:
                         f"Processing {method_name} - Step {i + 1}"
                     )
                 step_start_time = time.time()
-                method_instance.run_dynamic_frontier_louvain(deletions, insertions)
+                
+                # Call the appropriate method based on the algorithm type
+                if isinstance(method_instance, NaiveDynamicLouvain):
+                    method_instance.run_naive_dynamic_louvain(deletions, insertions)
+                elif isinstance(method_instance, DeltaScreeningLouvain):
+                    method_instance.run_delta_screening_louvain(deletions, insertions)
+                else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                    method_instance.run_dynamic_frontier_louvain(deletions, insertions)
+                
                 step_modularity = method_instance.get_modularity()
-                step_affected_nodes = len(method_instance.get_affected_nodes())
+                
+                # Get affected nodes count (if method supports it)
+                if hasattr(method_instance, 'get_affected_nodes') and callable(getattr(method_instance, 'get_affected_nodes')):
+                    step_affected_nodes = len(method_instance.get_affected_nodes())  # type: ignore
+                else:
+                    # For methods that don't track affected nodes (e.g., naive)
+                    step_affected_nodes = len(G.nodes())  # All nodes affected
+                
                 step_runtime = time.time() - step_start_time
 
                 results[method_name]["runtimes"].append(step_runtime)
@@ -666,12 +699,12 @@ def run_comprehensive_benchmark(
         # G_full, temporal_changes = data_manager.get_dataset(**full_nodes_config)
         G, temporal_changes = data_manager.get_dataset(**dataset_config)
         methods = {
-            "Dynamic Frontier Louvain": DynamicFrontierLouvain(
-                graph=G, verbose=False
+            # "Dynamic Frontier Louvain": DynamicFrontierLouvain(graph=G, verbose=False),
+            "Naive Dynamic Louvain": NaiveDynamicLouvain(graph=G, verbose=False),
+            "Delta Screening Louvain": DeltaScreeningLouvain(graph=G, verbose=False),
+            "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+                graph=G, verbose=False, refine_version="v3_fast"
             ),
-            # "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
-            #     graph=G, verbose=False, refine_version="v2"
-            # ),
         }
         benchmark.benchmark_dataset(
             methods=methods,

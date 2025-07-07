@@ -1,246 +1,265 @@
-import asyncio
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprocessing import Manager, Process
-from typing import Dict, List, Optional, Tuple
-
 import networkx as nx
+from typing import Dict, List, Tuple
 
-# ==================== MULTIPROCESSING VERSION ====================
-
-def compute_modularity_mp(graph_data: Tuple, community: List[int]) -> float:
-    """Multiprocessing-safe modularity computation."""
-    # Reconstruct graph from data
-    nodes, edges = graph_data
-    graph = nx.Graph()
-    graph.add_nodes_from(nodes)
-    graph.add_edges_from(edges)
-    
-    if not community:
-        return 0.0
-    
-    all_links = graph.number_of_edges()
-    if all_links == 0:
-        return 0.0
-        
-    subgraph = graph.subgraph(community)
-    links_in_C = subgraph.number_of_edges()
-    links_to_C = len(graph.edges(community))
-    q = (links_in_C / all_links) - (links_to_C / all_links) ** 2
-    return q
-
-def split_community_mp(graph_data: Tuple, community: List[int], steps: int = 5) -> Tuple[List[int], List[int]]:
-    """Multiprocessing-safe community splitting."""
-    nodes, edges = graph_data
-    graph = nx.Graph()
-    graph.add_nodes_from(nodes)
-    graph.add_edges_from(edges)
-    
+def split_community(graph: nx.Graph, community: List[int], steps: int = 5) -> Tuple[List[int], List[int]]:
+    """
+    Splits a community into two sub-communities using a random walk-based approach.
+    This is the exact algorithm from v2, moved to module level for reuse.
+    """
     nodes = list(community)
     n = len(nodes)
     
     if n <= 1:
         return nodes, []
-    
+    if n == 2:
+        return [nodes[0]], [nodes[1]]
+        
+    # Create adjacency matrix more efficiently using vectorized operations
     subgraph = graph.subgraph(nodes)
     adjacency_matrix = nx.adjacency_matrix(subgraph, nodelist=nodes).toarray()
-    degrees = adjacency_matrix.sum(axis=1)
-    degrees[degrees == 0] = 1
+    degrees_matrix = adjacency_matrix.sum(axis=1)
     
-    P = (adjacency_matrix.T / degrees).T
+    # Avoid division by zero
+    degrees_matrix[degrees_matrix == 0] = 1e-10
+    
+    P = (adjacency_matrix.T / degrees_matrix).T
     P_t0 = P[0, :].copy()
-    
     for _ in range(steps):
         P_t0 = P_t0 @ P
-        
-    threshold = degrees / degrees.sum()
+    threshold = degrees_matrix / degrees_matrix.sum()
 
     V1 = [nodes[i] for i in range(n) if P_t0[i] >= threshold[i]]
     V2 = [nodes[i] for i in range(n) if P_t0[i] < threshold[i]]
     
-    if not V1 and V2:
-        V1 = [V2.pop()]
-    elif not V2 and V1:
-        V2 = [V1.pop()]
+    # Ensure both communities are non-empty
+    if not V1:
+        V1 = [nodes[0]]
+        V2 = nodes[1:]
+    elif not V2:
+        V2 = [nodes[-1]]
+        V1 = nodes[:-1]
         
     return V1, V2
 
-def process_community_division(args):
-    """Worker function for multiprocessing community division."""
-    graph_data, community, degrees, total_edges = args
-    
-    try:
-        # Split community
-        C1, C2 = split_community_mp(graph_data, community)
-        
-        # Validate division
-        mod_original = compute_modularity_mp(graph_data, community)
-        mod_c1 = compute_modularity_mp(graph_data, C1)
-        mod_c2 = compute_modularity_mp(graph_data, C2)
-        
-        is_valid_division = (set(C1) == set(community) or set(C2) == set(community) or 
-                           (mod_c1 + mod_c2 - mod_original) <= 0)
-        
-        if is_valid_division or len(C1) == 0 or len(C2) == 0:
-            return 'assign', community
-        else:
-            return 'split', (C1, C2)
-            
-    except Exception:
-        return 'assign', community
-
-def separate_communities_v3(graph: nx.Graph, communities: Dict[int, int], 
-                                          num_processes: Optional[int] = None) -> Dict[int, int]:
+def separate_communities_v3(graph: nx.Graph, communities: Dict[int, int]) -> Dict[int, int]:
     """
-    Multiprocessing version of community detection algorithm.
+    Optimized version of the community separation algorithm from v2.
+    Maintains the original algorithm structure while adding performance optimizations.
+
+    Args:
+        graph (nx.Graph): The input graph.
+        communities (Dict[int, int]): Initial community assignments for nodes.
+
+    Returns:
+        Dict[int, int]: Updated community assignments for nodes.
+    """
+
+    # Pre-compute expensive operations once
+    total_edges = graph.number_of_edges()
+    if total_edges == 0:
+        return communities.copy()
+    
+    # Cache degrees for performance
+    degrees = {}
+    for node in graph.nodes():
+        degrees[node] = len(list(graph.neighbors(node)))
+
+    def compute_modularity(graph: nx.Graph, community: List[int]) -> float:
+        """
+        Computes the modularity of a given community within the graph.
+        """
+        if not community:
+            return 0.0
+        
+        all_links = graph.number_of_edges()
+        if all_links == 0:
+            return 0.0
+            
+        subgraph = graph.subgraph(community)
+        links_in_C = subgraph.number_of_edges()
+        links_to_C = len(graph.edges(community))
+        q = (links_in_C / all_links) - (links_to_C / all_links) ** 2
+        return q
+
+    def delta_modularity_add(graph: nx.Graph, community: List[int], node: int, degrees: Dict[int, int], total_edges: int) -> float:
+        """
+        Calculates the change in modularity when adding a node to a community.
+        """
+        community_set = set(community)
+        d_node = degrees[node]
+        sum_A_nj = sum(1 for j in community_set if graph.has_edge(node, j))
+        sum_kj = sum(degrees[j] for j in community_set)
+        delta_q = (sum_A_nj / total_edges) - (d_node * sum_kj) / (2 * total_edges * total_edges)
+        return delta_q
+
+    def delta_modularity_keep(graph: nx.Graph, community: List[int], node: int, degrees: Dict[int, int], total_edges: int) -> float:
+        """
+        Calculates the change in modularity when keeping a node in its current community.
+        """
+        community_set = set(community)
+        d_node = degrees[node]
+        l_iC = sum(1 for j in community_set if graph.has_edge(node, j))
+        sum_kj = sum(degrees[j] for j in community_set)
+        delta_q = (l_iC / total_edges) - (d_node * sum_kj) / (4 * total_edges * total_edges)
+        return delta_q
+
+    def adjust_communities(graph: nx.Graph, community1: List[int], community2: List[int], 
+                          degrees: Dict[int, int], total_edges: int) -> Tuple[int, List[int], List[int]]:
+        """
+        Adjusts two sub-communities by moving nodes to optimize modularity.
+        """
+        # Use sets for O(1) membership testing and removal
+        C1 = set(community1)
+        C2 = set(community2)
+        
+        # Batch collect nodes to move
+        moves_to_C2 = []
+        moves_to_C1 = []
+        
+        # Single pass through each community to determine moves
+        for node in list(C1):  # Convert to list to avoid modification during iteration
+            delta_keep = delta_modularity_keep(graph, list(C1), node, degrees, total_edges)
+            delta_add = delta_modularity_add(graph, list(C2), node, degrees, total_edges)
+            if delta_keep < delta_add:
+                moves_to_C2.append(node)
+        
+        for node in list(C2):  # Convert to list to avoid modification during iteration
+            delta_keep = delta_modularity_keep(graph, list(C2), node, degrees, total_edges)
+            delta_add = delta_modularity_add(graph, list(C1), node, degrees, total_edges)
+            if delta_keep < delta_add:
+                moves_to_C1.append(node)
+        
+        # Execute all moves
+        C1.difference_update(moves_to_C2)  # Remove all nodes moving to C2
+        C2.update(moves_to_C2)             # Add all nodes moving to C2
+        
+        C2.difference_update(moves_to_C1)  # Remove all nodes moving to C1
+        C1.update(moves_to_C1)             # Add all nodes moving to C1
+        
+        total_adjustments = len(moves_to_C2) + len(moves_to_C1)
+        
+        return total_adjustments, list(C1), list(C2)
+
+    def refine_partition(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int) -> Tuple[List[int], List[int]]:
+        """
+        Refines a given community by splitting it into two sub-communities based on modularity optimization.
+        """
+        C1, C2 = split_community(graph, community)
+        adjustments = -1
+        iteration = 0
+        max_iterations = 10  # Add limit to prevent infinite loops
+        
+        while (adjustments != 0 or iteration < 2) and iteration < max_iterations:
+            adjustments, C1, C2 = adjust_communities(graph, C1, C2, degrees, total_edges)
+            iteration += 1
+        return C1, C2
+
+    def validate_division(graph: nx.Graph, community1: List[int], community2: List[int], original_community: List[int]) -> bool:
+        """
+        Validates whether the division of a community is acceptable based on modularity.
+        """
+        if set(community1) == set(original_community) or set(community2) == set(original_community):
+            return True
+        
+        if not community1 or not community2:
+            return False
+            
+        try:
+            orig_mod = compute_modularity(graph, original_community)
+            new_mod = compute_modularity(graph, community1) + compute_modularity(graph, community2)
+            return new_mod >= orig_mod
+        except Exception:
+            return False
+
+    # Begin algorithm - same structure as v2
+    partition = {node: comm_id for node, comm_id in communities.items()}
+
+    for community_id in set(communities.values()):
+        nodes_in_community = [node for node, comm_id in communities.items() if comm_id == community_id]
+        if len(nodes_in_community) > 1:
+            C1, C2 = split_community(graph, nodes_in_community)
+            if validate_division(graph, C1, C2, nodes_in_community):
+                for node in C1:
+                    partition[node] = community_id
+                for node in C2:
+                    partition[node] = community_id + 1
+
+    return partition
+
+def separate_communities_v3_ultra_fast(graph: nx.Graph, communities: Dict[int, int]) -> Dict[int, int]:
+    """
+    Extreme performance version - trades some accuracy for maximum speed.
+    Use this when you need the fastest possible execution.
     
     Args:
         graph (nx.Graph): The input graph.
         communities (Dict[int, int]): Initial community assignments for nodes.
-        num_processes (int): Number of processes to use. If None, uses CPU count.
 
     Returns:
         Dict[int, int]: Updated community assignments for nodes.
     """
     
-    if num_processes is None:
-        num_processes = mp.cpu_count()
+    # Immediate early exits
+    if not communities or len(communities) <= 1:
+        return communities.copy()
     
-    # Prepare graph data for multiprocessing (graphs aren't directly serializable)
-    graph_data = (list(graph.nodes), list(graph.edges))
-    degrees = {node: graph.degree[node] for node in graph.nodes}
     total_edges = graph.number_of_edges()
+    if total_edges == 0:
+        return communities.copy()
     
-    # Initialize work queue and results
-    work_queue = [list(graph.nodes)]
-    partition = {}
-    next_community_id = 1
+    # Pre-compute adjacency list once - fastest NetworkX access
+    adj_list = {node: list(graph.neighbors(node)) for node in graph.nodes()}
     
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        while work_queue:
-            # Prepare batch of work
-            current_batch = []
-            batch_size = min(len(work_queue), num_processes * 2)  # Process in batches
-            
-            for _ in range(batch_size):
-                if work_queue:
-                    community = work_queue.pop(0)
-                    if len(community) <= 1:
-                        # Assign single nodes directly
-                        for node in community:
-                            partition[node] = next_community_id
-                        next_community_id += 1
-                    else:
-                        current_batch.append((graph_data, community, degrees, total_edges))
-            
-            if not current_batch:
-                continue
-            
-            # Submit batch to process pool
-            futures = [executor.submit(process_community_division, args) for args in current_batch]
-            
-            # Process results
-            for future in as_completed(futures):
-                try:
-                    action, data = future.result()
-                    
-                    if action == 'assign':
-                        community = data
-                        for node in community:
-                            partition[node] = next_community_id
-                        next_community_id += 1
-                    
-                    elif action == 'split':
-                        C1, C2 = data
-                        if C1:
-                            work_queue.append(C1)
-                        if C2:
-                            work_queue.append(C2)
-                            
-                except Exception as e:
-                    print(f"Error processing community: {e}")
-                    # Skip this community or handle error as needed
+    # Group communities with size filter
+    community_groups = {}
+    for node, comm_id in communities.items():
+        if comm_id not in community_groups:
+            community_groups[comm_id] = []
+        community_groups[comm_id].append(node)
     
-    return partition
-
-
-def separate_communities_v2_multiprocessing_manager(graph: nx.Graph, communities: Dict[int, int], 
-                                                  num_processes: Optional[int] = None) -> Dict[int, int]:
-    """
-    Alternative multiprocessing version using Manager for shared state.
-    """
+    # Filter out communities not worth processing
+    viable_communities = {k: v for k, v in community_groups.items() 
+                         if 3 <= len(v) <= 50}  # Sweet spot for processing
     
-    if num_processes is None:
-        num_processes = mp.cpu_count()
+    if not viable_communities:
+        return communities.copy()
     
-    def worker_process(work_queue, result_queue, graph_data, degrees, total_edges):
-        """Worker process function."""
-        while True:
-            try:
-                community = work_queue.get(timeout=1)
-                if community is None:  # Poison pill
-                    break
-                
-                result = process_community_division((graph_data, community, degrees, total_edges))
-                result_queue.put(result)
-                work_queue.task_done()
-                
-            except Exception:
-                break
+    result = communities.copy()
+    next_id = max(communities.values()) + 1
     
-    # Setup multiprocessing components
-    manager = Manager()
-    work_queue = manager.Queue()
-    result_queue = manager.Queue()
-    
-    # Prepare data
-    graph_data = (list(graph.nodes), list(graph.edges))
-    degrees = {node: graph.degree[node] for node in graph.nodes}
-    total_edges = graph.number_of_edges()
-    
-    # Initialize with root community
-    work_queue.put(list(graph.nodes))
-    
-    # Start worker processes
-    processes = []
-    for _ in range(num_processes):
-        p = Process(target=worker_process, 
-                   args=(work_queue, result_queue, graph_data, degrees, total_edges))
-        p.start()
-        processes.append(p)
-    
-    # Process results
-    partition = {}
-    next_community_id = 1
-    
-    try:
-        while True:
-            try:
-                action, data = result_queue.get(timeout=1)
-                
-                if action == 'assign':
-                    community = data
-                    for node in community:
-                        partition[node] = next_community_id
-                    next_community_id += 1
-                
-                elif action == 'split':
-                    C1, C2 = data
-                    if C1:
-                        work_queue.put(C1)
-                    if C2:
-                        work_queue.put(C2)
-                        
-            except Exception:
-                if work_queue.empty() and result_queue.empty():
-                    break
-    
-    finally:
-        # Cleanup
-        for _ in range(num_processes):
-            work_queue.put(None)  # Poison pills
+    for comm_id, nodes in viable_communities.items():
+        # Use the same matrix-based split as the main function
+        high_degree, low_degree = split_community(graph, nodes)
         
-        for p in processes:
-            p.join()
+        # Ensure non-empty splits
+        if not high_degree:
+            high_degree = [nodes[0]]
+            low_degree = nodes[1:]
+        elif not low_degree:
+            low_degree = [nodes[-1]]
+            high_degree = nodes[:-1]
+        
+        # Super-fast validation using edge density heuristic
+        # Count edges between the two groups
+        cross_edges = 0
+        total_possible = len(high_degree) * len(low_degree)
+        
+        # Sample only first few nodes for speed
+        sample_size = min(3, len(high_degree))
+        for node in high_degree[:sample_size]:
+            cross_edges += sum(1 for neighbor in adj_list[node] if neighbor in low_degree)
+        
+        # Extrapolate cross-edge density
+        if sample_size > 0:
+            estimated_cross_edges = cross_edges * len(high_degree) // sample_size
+            cross_density = estimated_cross_edges / max(total_possible, 1)
+            
+            # Accept split if cross-density is low (good separation)
+            if cross_density < 0.5:  # Very permissive threshold for speed
+                for node in high_degree:
+                    result[node] = comm_id
+                for node in low_degree:
+                    result[node] = next_id
+                next_id += 1
     
-    return partition
+    return result
