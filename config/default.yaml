@@ -2,9 +2,9 @@
 mode: "window_frame" # Options: "batch", "window_frame"
 
 default_configs:
-  load_full_nodes: &load_full_node false # Options: true, false
+  load_full_nodes: &load_full_node true # Options: true, false
   max_steps: &max_steps 200 # Maximum number of steps for the benchmark
-  initial_fraction: &initial_fraction 0.7 # Initial fraction of nodes to consider in the benchmark
+  initial_fraction: &initial_fraction 0.8 # Initial fraction of nodes to consider in the benchmark
 
 # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
 target_datasets:
