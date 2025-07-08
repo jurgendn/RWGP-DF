@@ -11,18 +11,39 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-import wandb
-from matplotlib import colormaps
 from tqdm.auto import tqdm
 
+import wandb
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
+from src.delta_screening import DeltaScreeningLouvain
 from src.df_louvain import (
     DynamicFrontierLouvain,
     GPDynamicFrontierLouvain,
 )
+from src.naive_dynamic import NaiveDynamicLouvain
 
 warnings.filterwarnings("ignore")
 
+colormaps = {
+    "Naive Dynamic Louvain": "orange",
+    "Delta Screening Louvain": "purple",
+    "GP - Dynamic Frontier Louvain": "red",
+    "nx": "green",
+}
+
+markers = {
+    "Naive Dynamic Louvain": "o",
+    "Delta Screening Louvain": "s",
+    "GP - Dynamic Frontier Louvain": "^",
+    "nx": "D",
+}
+
+linestyles = {
+    "Naive Dynamic Louvain": "-",
+    "Delta Screening Louvain": "--",
+    "GP - Dynamic Frontier Louvain": "-.",
+    "nx": ":",
+}
 
 def _safe_convert_nx_communities(nx_communities) -> List[List[int]]:
     """
@@ -94,7 +115,13 @@ class DFLouvainBenchmark:
 
     def benchmark_dataset(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[
+            Text,
+            DynamicFrontierLouvain
+            | GPDynamicFrontierLouvain
+            | NaiveDynamicLouvain
+            | DeltaScreeningLouvain,
+        ],
         dataset_name: Text,
         G: nx.Graph,
         temporal_changes: Dict[Text, List[List]],
@@ -150,7 +177,13 @@ class DFLouvainBenchmark:
 
     def _benchmark_static_comparison(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[
+            Text,
+            DynamicFrontierLouvain
+            | GPDynamicFrontierLouvain
+            | NaiveDynamicLouvain
+            | DeltaScreeningLouvain,
+        ],
         G: nx.Graph,
     ) -> Dict[str, Any]:
         """
@@ -182,7 +215,15 @@ class DFLouvainBenchmark:
         # Run all methods
         for method_name, method_instance in methods.items():
             start_time = time.time()
-            communities_dict = method_instance.run_dynamic_frontier_louvain()
+
+            # Call the appropriate method based on the algorithm type
+            if isinstance(method_instance, NaiveDynamicLouvain):
+                communities_dict = method_instance.run_naive_dynamic_louvain()
+            elif isinstance(method_instance, DeltaScreeningLouvain):
+                communities_dict = method_instance.run_delta_screening_louvain()
+            else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                communities_dict = method_instance.run_dynamic_frontier_louvain()
+
             modularity = method_instance.get_modularity()
             runtime = time.time() - start_time
 
@@ -204,7 +245,7 @@ class DFLouvainBenchmark:
         comparison_metrics = {}
         for method_name in methods.keys():
             comparison_metrics[method_name] = {}
-        
+
         # Compare each method with NetworkX
         for method_name, method_results in results.items():
             if method_name != "nx":
@@ -219,7 +260,7 @@ class DFLouvainBenchmark:
                 comparison_metrics[method_name]["community_count_diff"] = abs(
                     results["nx"]["num_communities"] - method_results["num_communities"]
                 )
-        
+
         results["comparison"] = comparison_metrics
 
         if self.verbose:
@@ -228,23 +269,29 @@ class DFLouvainBenchmark:
                     print(
                         f"{method_name}: Modularity={method_results['modularity']:.4f}, Runtime={method_results['runtime']:.3f}s, Communities={method_results['num_communities']}"
                     )
-            
+
             print(
-                f"NetworkX: Modularity={results['nx']['modularity']:.4f}, Runtime={results['nx']['runtime']:.3f}s, Communities={results['networkx']['num_communities']}"
+                f"NetworkX: Modularity={results['nx']['modularity']:.4f}, Runtime={results['nx']['runtime']:.3f}s, Communities={results['nx']['num_communities']}"
             )
-            
+
             # Print comparison metrics
-            for key, value in results['comparison'].items():
-                if 'modularity_diff' in key:
+            for key, value in results["comparison"].items():
+                if "modularity_diff" in key:
                     print(f"{key}: {value:.4f}")
-                elif 'runtime_ratio' in key:
+                elif "runtime_ratio" in key:
                     print(f"{key}: {value:.2f}")
 
         return results
 
     def _benchmark_dynamic_performance(
         self,
-        methods: Dict[Text, DynamicFrontierLouvain | GPDynamicFrontierLouvain],
+        methods: Dict[
+            Text,
+            DynamicFrontierLouvain
+            | GPDynamicFrontierLouvain
+            | NaiveDynamicLouvain
+            | DeltaScreeningLouvain,
+        ],
         G: nx.Graph,
         temporal_changes: List[Dict],
     ) -> Dict[str, Any]:
@@ -271,7 +318,7 @@ class DFLouvainBenchmark:
             "total_runtime": 0,
             "iterations_per_step": [],
         }
-        
+
         # Initial NetworkX Louvain
         nx_start_time = time.time()
         nx_communities = nx.algorithms.community.louvain_communities(G, weight="weight")
@@ -279,16 +326,24 @@ class DFLouvainBenchmark:
             G, nx_communities, weight="weight"
         )
         nx_initial_time = time.time() - nx_start_time
-        results['nx']["modularities"].append(initial_nx_modularity)
-        results['nx']["runtimes"].append(nx_initial_time)
+        results["nx"]["modularities"].append(initial_nx_modularity)
+        results["nx"]["runtimes"].append(nx_initial_time)
 
         for method_name, method_instance in methods.items():
             # Initialize results for each method
             start_time = time.time()
-            method_instance.run_dynamic_frontier_louvain()
+
+            # Call the appropriate method based on the algorithm type
+            if isinstance(method_instance, NaiveDynamicLouvain):
+                method_instance.run_naive_dynamic_louvain()
+            elif isinstance(method_instance, DeltaScreeningLouvain):
+                method_instance.run_delta_screening_louvain()
+            else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                method_instance.run_dynamic_frontier_louvain()
+
             initial_time = time.time() - start_time
             initial_modularity = method_instance.get_modularity()
-            
+
             results[method_name]["runtimes"] = [initial_time]
             results[method_name]["modularities"] = [initial_modularity]
 
@@ -316,9 +371,26 @@ class DFLouvainBenchmark:
                         f"Processing {method_name} - Step {i + 1}"
                     )
                 step_start_time = time.time()
-                method_instance.run_dynamic_frontier_louvain(deletions, insertions)
+
+                # Call the appropriate method based on the algorithm type
+                if isinstance(method_instance, NaiveDynamicLouvain):
+                    method_instance.run_naive_dynamic_louvain(deletions, insertions)
+                elif isinstance(method_instance, DeltaScreeningLouvain):
+                    method_instance.run_delta_screening_louvain(deletions, insertions)
+                else:  # DynamicFrontierLouvain or GPDynamicFrontierLouvain
+                    method_instance.run_dynamic_frontier_louvain(deletions, insertions)
+
                 step_modularity = method_instance.get_modularity()
-                step_affected_nodes = len(method_instance.get_affected_nodes())
+
+                # Get affected nodes count (if method supports it)
+                if hasattr(method_instance, "get_affected_nodes") and callable(
+                    getattr(method_instance, "get_affected_nodes")
+                ):
+                    step_affected_nodes = len(method_instance.get_affected_nodes())  # type: ignore
+                else:
+                    # For methods that don't track affected nodes (e.g., naive)
+                    step_affected_nodes = len(G.nodes())  # All nodes affected
+
                 step_runtime = time.time() - step_start_time
 
                 results[method_name]["runtimes"].append(step_runtime)
@@ -356,12 +428,16 @@ class DFLouvainBenchmark:
             for method_name, method_instance in methods.items():
                 if method_name in ["general"]:
                     continue
-                intermediate_value[f"{method_instance.__shortname__} modularity"] = results[method_name]["modularities"][-1]
-                intermediate_value[f"{method_instance.__shortname__} runtime"] = results[method_name]["runtimes"][-1]
-                intermediate_value[f"{method_instance.__shortname__} affected_nodes"] = results[
-                    method_name
-                ]["affected_nodes"][-1]
-                
+                intermediate_value[f"{method_instance.__shortname__} modularity"] = (
+                    results[method_name]["modularities"][-1]
+                )
+                intermediate_value[f"{method_instance.__shortname__} runtime"] = (
+                    results[method_name]["runtimes"][-1]
+                )
+                intermediate_value[
+                    f"{method_instance.__shortname__} affected_nodes"
+                ] = results[method_name]["affected_nodes"][-1]
+
             progress_bar.set_postfix(ordered_dict=intermediate_value)
 
             wandb.log(
@@ -391,10 +467,16 @@ class DFLouvainBenchmark:
         results["general"]["total_runtime"] = time.time() - total_start_time
         # Calculate summary statistics for each method
         for method_name in methods.keys():
-            results[method_name]["avg_runtime"] = np.mean(results[method_name]["runtimes"])
-            results[method_name]["modularity_stability"] = np.std(results[method_name]["modularities"])
-            results[method_name]["total_runtime"] = sum(results[method_name]["runtimes"])
-        
+            results[method_name]["avg_runtime"] = np.mean(
+                results[method_name]["runtimes"]
+            )
+            results[method_name]["modularity_stability"] = np.std(
+                results[method_name]["modularities"]
+            )
+            results[method_name]["total_runtime"] = sum(
+                results[method_name]["runtimes"]
+            )
+
         # Calculate summary statistics for NetworkX
         results["nx"]["avg_runtime"] = np.mean(results["nx"]["runtimes"])
         results["nx"]["modularity_stability"] = np.std(results["nx"]["modularities"])
@@ -403,7 +485,7 @@ class DFLouvainBenchmark:
         if self.verbose:
             print(f"Total dynamic runtime: {results['general']['total_runtime']:.3f}s")
             for method_name in methods.keys():
-                modularities = results[method_name]['modularities']
+                modularities = results[method_name]["modularities"]
                 print(
                     f"Average {method_name} step runtime: {results[method_name]['avg_runtime']:.3f}s"
                 )
@@ -412,15 +494,13 @@ class DFLouvainBenchmark:
                 )
                 print("=" * 40)
             print(f"Average NX step runtime: {results['nx']['avg_runtime']:.3f}s")
-            nx_modularities = results['nx']['modularities']
+            nx_modularities = results["nx"]["modularities"]
             print(
                 f"NX Modularity range: [{min(nx_modularities):.4f}, {max(nx_modularities):.4f}]"
             )
             print("=" * 40)
 
         return results
-
-
 
     def _print_summary(self, results: Dict[str, Any]) -> None:
         """Print a summary of benchmark results."""
@@ -446,7 +526,7 @@ class DFLouvainBenchmark:
         dynamic = results["dynamic_performance"]
         print("\nDynamic Performance:")
         print(f"  Total Runtime: {dynamic['general']['total_runtime']:.3f}s")
-        
+
         # Print results for each method dynamically
         for method_name in dynamic.keys():
             if method_name != "general" and method_name != "nx":
@@ -456,12 +536,11 @@ class DFLouvainBenchmark:
                 print(
                     f"  {method_name} Modularity Std: {dynamic[method_name]['modularity_stability']:.4f}"
                 )
-        
+
         # Print NetworkX results
         if "nx" in dynamic:
             print(f"  Avg NX Step Runtime: {dynamic['nx']['avg_runtime']:.3f}s")
             print(f"  NX Modularity Std: {dynamic['nx']['modularity_stability']:.4f}")
-
 
     def plot_results(self, dataset_name: str, save_path: Optional[str] = None) -> None:
         """
@@ -471,7 +550,6 @@ class DFLouvainBenchmark:
             dataset_name: Name of the dataset to plot
             save_path: Optional path to save the plot
         """
-        color_map = colormaps["tab10"]
         if dataset_name not in self.results:
             print(f"No results found for dataset: {dataset_name}")
             return
@@ -492,7 +570,10 @@ class DFLouvainBenchmark:
                     time_steps[1:],
                     modularities[1:],
                     label=method_name,
-                    color=color_map(idx % 10),
+                    color=colormaps.get(method_name),
+                    linestyle=linestyles.get(method_name, "-"),
+                    marker=markers.get(method_name, "o"),
+                    markersize=1,
                     linewidth=1,
                     alpha=0.8,
                 )
@@ -507,8 +588,11 @@ class DFLouvainBenchmark:
                 axes[0, 1].plot(
                     time_steps,
                     run_time,
-                    color=color_map(idx % 10),
+                    color=colormaps.get(method_name),
                     linewidth=1,
+                    linestyle=linestyles.get(method_name, "-"),
+                    marker=markers.get(method_name, "o"),
+                    markersize=1,
                     label=method_name,
                     alpha=0.8,
                 )
@@ -525,15 +609,18 @@ class DFLouvainBenchmark:
                     time_steps[:-2],
                     affected_nodes[1:],
                     label=method_name,
+                    linestyle=linestyles.get(method_name, "-"),
+                    marker=markers.get(method_name, "o"),
+                    markersize=1,
                     linewidth=2,
-                    alpha=0.75,
+                    alpha=0.5,
                 )
             axes[1, 0].set_title(
                 "Affected Nodes Per Step (DF Louvain vs GP-DF Louvain)"
             )
             axes[1, 0].set_xlabel("Time Step")
             axes[1, 0].set_xticks(range(0, len(time_steps[:-1]), 10))
-            axes[1, 0].tick_params(axis='x', rotation=-45)
+            axes[1, 0].tick_params(axis="x", rotation=-45)
             axes[1, 0].legend()
             axes[1, 0].set_ylabel("Number of Affected Nodes")
             axes[1, 0].grid(True, alpha=0.3)
@@ -549,7 +636,7 @@ class DFLouvainBenchmark:
         bars = axes[1, 1].bar(
             algorithms,
             avg_runtimes,
-            color=[color_map(i) for i in range(len(algorithms))],
+            color=[colormaps.get(method_name) for method_name in algorithms],
             alpha=1,
         )
         axes[1, 1].set_title("Average Runtime Comparison")
@@ -567,7 +654,6 @@ class DFLouvainBenchmark:
             )
 
         axes[1, 1].grid(True, alpha=0.3)
-
 
         plt.tight_layout()
 
@@ -607,19 +693,25 @@ class DFLouvainBenchmark:
                 "total_dynamic_runtime": dynamic["general"]["total_runtime"],
                 "avg_nx_step_runtime": dynamic["nx"]["avg_runtime"],
             }
-            
+
             # Add method-specific data using a for loop
             for method_name in dynamic:
                 if method_name == "general" or method_name == "nx":
                     continue
                 # Static comparison data
                 row[f"{method_name} Modularity"] = static[method_name]["modularity"]
-                row[f"{method_name} Modularity Diff"] = static["comparison"][method_name]["modularity_diff"]
-                
+                row[f"{method_name} Modularity Diff"] = static["comparison"][
+                    method_name
+                ]["modularity_diff"]
+
                 # Dynamic performance data
                 if method_name in dynamic:
-                    row[f"avg_{method_name}_step_runtime"] = dynamic[method_name]["avg_runtime"]
-                    row[f"{method_name}_modularity_stability"] = dynamic[method_name]["modularity_stability"]
+                    row[f"avg_{method_name}_step_runtime"] = dynamic[method_name][
+                        "avg_runtime"
+                    ]
+                    row[f"{method_name}_modularity_stability"] = dynamic[method_name][
+                        "modularity_stability"
+                    ]
                 else:
                     row[f"avg_{method_name}_step_runtime"] = 0
                     row[f"{method_name}_modularity_stability"] = 0
@@ -666,12 +758,12 @@ def run_comprehensive_benchmark(
         # G_full, temporal_changes = data_manager.get_dataset(**full_nodes_config)
         G, temporal_changes = data_manager.get_dataset(**dataset_config)
         methods = {
-            "Dynamic Frontier Louvain": DynamicFrontierLouvain(
-                graph=G, verbose=False
+            # "Dynamic Frontier Louvain": DynamicFrontierLouvain(graph=G, verbose=False),
+            "Naive Dynamic Louvain": NaiveDynamicLouvain(graph=G, verbose=False),
+            "Delta Screening Louvain": DeltaScreeningLouvain(graph=G, verbose=False),
+            "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+                graph=G, verbose=False, refine_version="v2"
             ),
-            # "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
-            #     graph=G, verbose=False, refine_version="v2"
-            # ),
         }
         benchmark.benchmark_dataset(
             methods=methods,

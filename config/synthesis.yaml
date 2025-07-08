@@ -1,18 +1,18 @@
-# mode: "batch" # Options: "batch", "window_frame"
-mode: "window_frame" # Options: "batch", "window_frame"
+mode: "batch" # Options: "batch", "window_frame"
+# mode: "window_frame" # Options: "batch", "window_frame"
 
 default_configs:
-  load_full_nodes: &load_full_node true # Options: true, false
+  load_full_nodes: &load_full_node false # Options: true, false
   max_steps: &max_steps 200 # Maximum number of steps for the benchmark
-  initial_fraction: &initial_fraction 0.8 # Initial fraction of nodes to consider in the benchmark
+  initial_fraction: &initial_fraction 0.5 # Initial fraction of nodes to consider in the benchmark
 
 # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
 target_datasets:
   # - email-eu-core
   # - sx-askubuntu
   # - sx-mathoverflow
-  # - college_msg
-  - bitcoin_alpha
+  - college_msg
+  # - bitcoin_alpha
   # - bitcoin_otc
 batch_data_manager:
   college_msg:
@@ -61,8 +61,8 @@ window_frame_data_manager:
   college_msg:
     dataset_path: dataset/CollegeMsg.txt
     dataset_type: college_msg
-    window_size: 15
-    step_size: 1
+    window_size: 30
+    step_size: 2
     initial_fraction: *initial_fraction
     max_steps: *max_steps
     load_full_nodes: *load_full_node
@@ -77,7 +77,7 @@ window_frame_data_manager:
   sx-askubuntu:
     dataset_path: dataset/sx-askubuntu.txt
     dataset_type: email-eu-core
-    window_size: 5  444444444q
+    window_size: 5
     step_size: 1
     initial_fraction: *initial_fraction
     max_steps: *max_steps
