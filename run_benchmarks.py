@@ -2,6 +2,7 @@
 Main script to run DFLouvain benchmarks on the provided datasets.
 """
 import os
+import random
 from pathlib import Path
 from typing import Any, Dict, Text
 
@@ -13,11 +14,13 @@ import yaml
 
 from src.benchmarks import Runner
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
-from src.models import GPDynamicFrontierLouvain, StaticLouvain
+from src.models import GPDynamicFrontierLouvain, StaticLouvain, DeltaScreeningLouvain
 from src.utils import helpers
 from src.utils.plotter import Plotter
 
 np.random.seed(42)
+random.seed(42)
+
 
 def run_benchmark(
     data_manager: DatasetBatchManager | DatasetWindowTimeManager,
@@ -38,9 +41,9 @@ def run_benchmark(
         # "Naive Dynamic Louvain": NaiveDynamicLouvain(
         #     graph=G, initial_communities=initial_communities_dict, verbose=False
         # ),
-        # "Delta Screening Louvain": DeltaScreeningLouvain(
-        #     graph=G, initial_communities=initial_communities_dict, verbose=False
-        # ),
+        "Delta Screening Louvain": DeltaScreeningLouvain(
+            graph=G, initial_communities=initial_communities_dict, verbose=False
+        ),
         "Static Louvain": StaticLouvain(
             graph=G, initial_communities=initial_communities_dict, verbose=False
         ),

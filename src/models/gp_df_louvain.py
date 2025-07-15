@@ -1,35 +1,17 @@
-"""
-Synchronous Dynamic Frontier Louvain algorithm implementation.
-
-This module provides the synchronous implementation of the Dynamic Frontier Louvain
-algorithm for community detection in dynamic networks.
-"""
-from collections import defaultdict
 from time import time
 from typing import Any, Callable, Dict, List, Literal, Optional, Text, Tuple
 
 import networkx as nx
-import numpy as np
 
-from src.components.dataset import SelectiveSampler
 from src.components.factory import (
     IntermediateResults,
     MethodDynamicResults,
 )
 from src.gp_df import separate_communities
-from src.models.community_info import CommunityUtils
+from src.models.base import LouvainMixin
 
 
-class GPDynamicFrontierLouvain:
-    """
-    Dynamic Frontier Louvain algorithm implementation for community detection
-    in dynamic networks with changing edge structures.
-
-    This class implements an efficient community detection algorithm that can
-    incrementally update communities when edges are added or removed from the network,
-    without having to recompute communities from scratch.
-    """
-
+class GPDynamicFrontierLouvain(LouvainMixin):
     def __init__(
         self,
         graph: nx.Graph,
@@ -40,85 +22,17 @@ class GPDynamicFrontierLouvain:
         refine_version: str = "v2",
         verbose: bool = True,
     ) -> None:
-        """
-        Initialize Dynamic Frontier Louvain algorithm.
+        super().__init__(
+            graph=graph,
+            initial_communities=initial_communities,
+            sampler_type=sampler_type,
+            tolerance=tolerance,
+            max_iterations=max_iterations,
+            verbose=verbose,
+        )
 
-        Args:
-            graph: NetworkX graph (undirected)
-            tolerance: Convergence tolerance for local-moving phase
-            max_iterations: Maximum iterations per local-moving phase
-            verbose: Whether to print progress information
-        """
         self.__shortname__ = "gpdf"
-        self.sampler_type = sampler_type
-        self.graph = graph.copy()
-        self.tolerance = tolerance
-        self.max_iterations = max_iterations
-        self.verbose = verbose
-        self.nodes = list(graph.nodes())
-        self.node_to_idx = {node: idx for idx, node in enumerate(self.nodes)}
         self.refine_version = refine_version
-        if initial_communities is not None:
-            communities_dict = initial_communities
-        else:
-            communities_dict = CommunityUtils.initialize_communities_with_networkx(
-                self.graph
-            )
-        self.community = np.zeros(len(self.nodes), dtype=int)
-        for node, community_id in communities_dict.items():
-            if node in self.node_to_idx:
-                node_idx = self.node_to_idx[node]
-                self.community[node_idx] = community_id
-        self.weighted_degree = self._calculate_weighted_degrees()
-        self.community_weights = self._calculate_community_weights()
-        self.total_edge_weight = sum(self.weighted_degree) / 2
-        self.affected = np.zeros(len(self.nodes), dtype=bool)
-        self.sampler = SelectiveSampler(self.graph, communities_dict)
-
-    def _calculate_weighted_degrees(self) -> np.ndarray:
-        degrees = np.zeros(len(self.nodes))
-        for i, node in enumerate(self.nodes):
-            degree = 0.0
-            for neighbor in self.graph.neighbors(node):
-                weight = self.graph[node][neighbor].get("weight", 1.0)
-                degree += weight
-            degrees[i] = degree
-        return degrees
-
-    def _calculate_community_weights(self) -> Dict[int, float]:
-        weights = defaultdict(float)
-        for i, node in enumerate(self.nodes):
-            community_id = self.community[i]
-            weights[community_id] += self.weighted_degree[i]
-        return dict(weights)
-
-    def _get_neighbor_communities(self, node_idx: int) -> Dict[int, float]:
-        node = self.nodes[node_idx]
-        neighbor_communities = defaultdict(float)
-        for neighbor in self.graph.neighbors(node):
-            if neighbor in self.node_to_idx:
-                neighbor_idx = self.node_to_idx[neighbor]
-                neighbor_community = self.community[neighbor_idx]
-                weight = self.graph[node][neighbor].get("weight", 1.0)
-                neighbor_communities[neighbor_community] += weight
-        return neighbor_communities
-
-    def _calculate_delta_modularity(
-        self, node_idx: int, target_community: int
-    ) -> float:
-        current_community = self.community[node_idx]
-        if current_community == target_community:
-            return 0.0
-        neighbor_communities = self._get_neighbor_communities(node_idx)
-        k_i_to_c = neighbor_communities.get(target_community, 0.0)
-        k_i_to_d = neighbor_communities.get(current_community, 0.0)
-        k_i = self.weighted_degree[node_idx]
-        sigma_c = self.community_weights.get(target_community, 0.0)
-        sigma_d = self.community_weights.get(current_community, 0.0)
-        delta_q = (1.0 / self.total_edge_weight) * (k_i_to_c - k_i_to_d) - (
-            k_i / (2.0 * self.total_edge_weight**2)
-        ) * (k_i + sigma_c - sigma_d)
-        return delta_q
 
     def _move_node(self, node_idx: int, new_community: int) -> None:
         old_community = self.community[node_idx]
@@ -183,20 +97,6 @@ class GPDynamicFrontierLouvain:
                 break
         return num_iterations
 
-    def _add_new_nodes(self, new_nodes: List[Any]) -> None:
-        for node in new_nodes:
-            if node not in self.node_to_idx:
-                self.graph.add_node(node)
-                node_idx = len(self.nodes)
-                self.nodes.append(node)
-                self.node_to_idx[node] = node_idx
-                self.community = np.append(
-                    self.community, node_idx
-                )
-                self.weighted_degree = np.append(self.weighted_degree, 0.0)
-                self.affected = np.append(self.affected, False)
-                self.community_weights[node_idx] = 0.0
-
     def apply_batch_update(
         self,
         edge_deletions: Optional[List[Tuple]] = None,
@@ -260,7 +160,6 @@ class GPDynamicFrontierLouvain:
         if self.sampler_type == "selective":
             edge_deletions = self.sampler.sample(
                 num_samples=len(edge_deletions),
-                num_communities=np.random.randint(2, 3),
             )
         start_time = time()
         if edge_deletions is not None or edge_insertions is not None:
@@ -346,18 +245,3 @@ class GPDynamicFrontierLouvain:
             full_communities=new_community,
         )
         return separated
-
-    def get_modularity(self) -> float:
-        communities_dict = {
-            self.nodes[i]: self.community[i] for i in range(len(self.nodes))
-        }
-        return CommunityUtils.calculate_modularity(self.graph, communities_dict)
-
-    def get_communities(self) -> Dict[int, set]:
-        communities = defaultdict(set)
-        for i, node in enumerate(self.nodes):
-            communities[self.community[i]].add(node)
-        return dict(communities)
-
-    def get_affected_nodes(self) -> List[Any]:
-        return [self.nodes[i] for i in range(len(self.nodes)) if self.affected[i]]
