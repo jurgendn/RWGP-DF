@@ -1,39 +1,32 @@
 import warnings
 from collections import defaultdict
-from typing import Any, Dict, List, Text
+from typing import Dict, List, Literal, Text
 
 import networkx as nx
+import wandb
 from tqdm.auto import tqdm
 
-import wandb
-from src import (
+from src.components.dataset import TemporalChanges
+from src.components.factory import (
+    MethodDynamicResults,
+)
+from src.models import (
+    DeltaScreeningLouvain,
     DynamicFrontierLouvain,
     GPDynamicFrontierLouvain,
     NaiveDynamicLouvain,
     StaticLouvain,
 )
-from src.components.dataset import TemporalChanges
-from src.components.factory import (
-    MethodDynamicResults,
-)
-from src.delta_screening import DeltaScreeningLouvain
 
 warnings.filterwarnings("ignore")
 
-AlgorithmsType = (
-    DeltaScreeningLouvain
-    | NaiveDynamicLouvain
-    | DynamicFrontierLouvain
-    | GPDynamicFrontierLouvain
-    | StaticLouvain
-)
 
 
 class BenchmarkMethod:
     def __init__(
         self,
         model_name: Text,
-        model_instance: AlgorithmsType,
+        model_instance: DeltaScreeningLouvain | NaiveDynamicLouvain | DynamicFrontierLouvain | GPDynamicFrontierLouvain | StaticLouvain,
         logger: bool = False,
         verbose: bool = False,
     ):
@@ -51,7 +44,7 @@ class BenchmarkMethod:
 
         self.is_fitted = False
 
-    def benchmark_dynamic_performance(
+    def benchmark(
         self,
         G: nx.Graph,
         temporal_changes: List[TemporalChanges],
@@ -121,11 +114,18 @@ class BenchmarkMethod:
         return results
 
 
-
 class Runner:
     def __init__(
         self,
-        models: Dict[Text, AlgorithmsType],
+        models: Dict[
+            Text,
+            DeltaScreeningLouvain
+            | NaiveDynamicLouvain
+            | DynamicFrontierLouvain
+            | GPDynamicFrontierLouvain
+            | StaticLouvain,
+        ],
+        sampler_type: Literal["default", "selective_sampler"] = "default",
         logger: bool = False,
         verbose: bool = False,
     ):
@@ -137,6 +137,7 @@ class Runner:
         """
         self.verbose = verbose
         self.logger = logger
+        self.sampler_type = sampler_type
         self.results = {}
         self.models = models 
         if self.logger:
@@ -145,10 +146,14 @@ class Runner:
                 reinit=True,
             )
 
-    def __forward_slow(
+    def __forward_normal_slow(
         self,
         model_name: Text,
-        model: AlgorithmsType,
+        model: DeltaScreeningLouvain
+        | NaiveDynamicLouvain
+        | DynamicFrontierLouvain
+        | GPDynamicFrontierLouvain
+        | StaticLouvain,
         G: nx.Graph,
         temporal_changes: List[TemporalChanges],
     ) -> Dict[Text, MethodDynamicResults]:
@@ -166,14 +171,19 @@ class Runner:
         benchmark_method = BenchmarkMethod(
             model_name=model_name, model_instance=model, verbose=self.verbose
         )
-        return benchmark_method.benchmark_dynamic_performance(G, temporal_changes)
+        return benchmark_method.benchmark(G, temporal_changes)
 
-    def forward(self, G: nx.Graph, temporal_changes: List[TemporalChanges]) -> Dict[str, Any]:
+    def forward(
+        self,
+        G: nx.Graph,
+        temporal_changes: List[TemporalChanges],
+    ):
         if self.verbose:
             print("\n--- Running Benchmark ---")
 
         for model_name, model in self.models.items():
-            result = self.__forward_slow(
+            print(f"Running benchmark for {model_name}...")
+            result = self.__forward_normal_slow(
                 model_name=model_name,
                 model=model,
                 G=G,

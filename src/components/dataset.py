@@ -24,9 +24,8 @@ class SelectiveSampler:
     ) -> bool:
         """Check if an edge can be removed based on community membership."""
         return (
-            self.communities[u] in target_communities
-            and self.communities[v] in target_communities
-            and self.communities[u] == self.communities[v]
+            self.communities[u] == self.communities[v]
+            and self.communities[u] in target_communities
         )
 
     def sample(self, num_samples: int, num_communities: int) -> List[Tuple]:
@@ -54,40 +53,3 @@ class SelectiveSampler:
                 if len(sampled_edges) >= num_samples:
                     break
         return sampled_edges
-    
-
-
-class DataLoader:
-    def __init__(
-        self,
-        dataset_path: Text,
-        graph: nx.Graph,
-        temporal_edges: List[TemporalChanges],
-        initial_communities: Dict[int, int] | None = None,
-    ):
-        self.G = graph
-        self.temporal_edges = temporal_edges
-        self.dataset_path = dataset_path
-        self.communities = self.init_communities(initial_communities)
-        self.sampler = SelectiveSampler(self.G, self.communities)
-
-    def init_communities(self, initial_communities: Dict[int, int] | None = None):
-        if initial_communities is not None:
-            communities = initial_communities
-        else:
-            nx_communities = nx.algorithms.community.louvain_communities(self.G)
-            communities = {
-                node: i
-                for i, community in enumerate(nx_communities)  # type: ignore
-                for node in community
-            }
-        return communities
-
-    def update_communities(self, communities: Dict[int, int]):
-        """Update the communities in the sampler."""
-        self.communities = communities
-        self.sampler.update_communities(communities)
-    
-    def __getitem__(self, item: int) -> Tuple[nx.Graph, Dict[int, int]]:
-        """Get the graph and communities for a specific item."""
-        return self.G, self.communities
