@@ -1,12 +1,13 @@
 from collections import defaultdict
 from time import time
-from typing import Any, Dict, List, Optional, Text, Tuple
+from typing import Any, Dict, List, Literal, Optional, Text, Tuple
 
 import networkx as nx
 import numpy as np
 
-from src.community_info import CommunityUtils
+from src.components.dataset import SelectiveSampler
 from src.components.factory import IntermediateResults
+from src.models.community_info import CommunityUtils
 
 
 class DeltaScreeningLouvain:
@@ -23,9 +24,11 @@ class DeltaScreeningLouvain:
         self,
         graph: nx.Graph,
         initial_communities: Optional[Dict[Any, int]] = None,
+        sampler_type: Literal["selective", "full"] = "selective",
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
+        
     ) -> None:
         """
         Initialize Delta-screening Louvain algorithm.
@@ -37,6 +40,7 @@ class DeltaScreeningLouvain:
             verbose: Whether to print progress information
         """
         self.__shortname__ = "delta"
+        self.sampler_type = sampler_type
         self.graph = graph.copy()
         self.tolerance = tolerance
         self.max_iterations = max_iterations
@@ -71,7 +75,7 @@ class DeltaScreeningLouvain:
         # Affected vertices tracking (delta-screening specific)
         self.affected = np.zeros(len(self.nodes), dtype=bool)
         self.previous_community = None
-
+        self.sampler = SelectiveSampler(self.graph, communities_dict)
     def _calculate_weighted_degrees(self) -> np.ndarray:
         """
         Calculate weighted degree for each node.
@@ -476,8 +480,8 @@ class DeltaScreeningLouvain:
 
     def run(
         self,
-        edge_deletions: Optional[List[Tuple]] = None,
-        edge_insertions: Optional[List[Tuple]] = None,
+        edge_deletions: List[Tuple],
+        edge_insertions: List[Tuple],
     ) -> Dict[Text, IntermediateResults]:
         """
         Run complete Delta-screening Louvain algorithm.
@@ -495,7 +499,11 @@ class DeltaScreeningLouvain:
         """
         # Start timing the algorithm
         start_time = time()
-
+        if self.sampler_type == "selective":
+            edge_deletions = self.sampler.sample(
+                num_samples=len(edge_deletions),
+                num_communities=np.random.randint(1, 5),
+            )
         # Apply batch update and identify affected vertices
         if edge_deletions is not None or edge_insertions is not None:
             self.apply_batch_update(edge_deletions, edge_insertions)
@@ -514,12 +522,12 @@ class DeltaScreeningLouvain:
         
         # Calculate runtime and modularity
         runtime = time() - start_time
-        modularity = self.get_modularity()
-        affected_count = np.sum(self.affected)
+        self.sampler.update_communities(community_assignment)
+
         res = IntermediateResults(
             runtime=runtime,
-            modularity=modularity,
-            affected_nodes=affected_count,
+            modularity=self.get_modularity(),
+            affected_nodes=np.sum(self.affected),
         )
 
         return {"Delta Screening": res}

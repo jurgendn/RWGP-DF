@@ -7,11 +7,9 @@ synchronous and asynchronous implementations of the Dynamic Frontier Louvain alg
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, Set
 
 import networkx as nx
-import numpy as np
-from sklearn.cluster import KMeans
 
 
 @dataclass

@@ -3,19 +3,23 @@ Main script to run DFLouvain benchmarks on the provided datasets.
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Text
+from typing import Any, Dict, Text
 
 import networkx as nx
+
+# Set seed for reproducibility
+import numpy as np
 import yaml
 
-from src import GPDynamicFrontierLouvain, NaiveDynamicLouvain, StaticLouvain
 from src.benchmarks import Runner
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
+from src.models import GPDynamicFrontierLouvain, StaticLouvain
 from src.utils import helpers
 from src.utils.plotter import Plotter
 
+np.random.seed(42)
 
-def run_comprehensive_benchmark(
+def run_benchmark(
     data_manager: DatasetBatchManager | DatasetWindowTimeManager,
     dataset_config: Dict[Text, Any],
 ):
@@ -29,7 +33,7 @@ def run_comprehensive_benchmark(
     for community_id, community in enumerate(initial_communities): # type: ignore
         for node in community:
             initial_communities_dict[node] = community_id
-  
+
     methods = {
         # "Naive Dynamic Louvain": NaiveDynamicLouvain(
         #     graph=G, initial_communities=initial_communities_dict, verbose=False
@@ -37,9 +41,9 @@ def run_comprehensive_benchmark(
         # "Delta Screening Louvain": DeltaScreeningLouvain(
         #     graph=G, initial_communities=initial_communities_dict, verbose=False
         # ),
-        # "Static Louvain": StaticLouvain(
-        #     graph=G, initial_communities=initial_communities_dict, verbose=False
-        # ),
+        "Static Louvain": StaticLouvain(
+            graph=G, initial_communities=initial_communities_dict, verbose=False
+        ),
         "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
             graph=G,
             initial_communities=initial_communities_dict,
@@ -48,13 +52,15 @@ def run_comprehensive_benchmark(
         ),
     }
     runner = Runner(
-        models=methods,
+        models=methods,  # type: ignore
+        sampler_type="selective_sampler",
         logger=False,
         verbose=True,
     )
     results = runner.forward(G, temporal_changes)
 
     return results
+
 
 def main():
     with open("./config/default.yaml", "r") as file:
@@ -84,11 +90,10 @@ def main():
                 mode=mode,
                 dataset_config=dataset_config,
             )
-            results = run_comprehensive_benchmark(
+            results = run_benchmark(
                 data_manager=data_manager,
                 dataset_config=dataset_config,
             )
-
             dataset_dir = Path(os.path.join(results_dir, dataset_name))
             dataset_dir.mkdir(exist_ok=True)
             # Create plot for the dataset
