@@ -2,21 +2,21 @@ mode: "batch" # Options: "batch", "window_frame"
 # mode: "window_frame" # Options: "batch", "window_frame"
 
 default_configs:
-  load_full_nodes: &load_full_node true # Options: true, false
+  load_full_nodes: &load_full_node false # Options: true, false
   max_steps: &max_steps 100 # Maximum number of steps for the benchmark
-  initial_fraction: &initial_fraction 0.3 # Initial fraction of nodes to consider in the benchmark
+  initial_fraction: &initial_fraction 0.5 # Initial fraction of nodes to consider in the benchmark
   batch_range: &batch_range 0.01 # Initial fraction of nodes to consider in the benchmark
   delimiter: &delimiter " " # Delimiter for the dataset files
 
 # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
 target_datasets:
   # - soc-reddit-hyperlink-body
-  # - primary_school
+  - primary_school
   # - sx-askubuntu
   # - email-eu-core
   # - sx-mathoverflow
   # - college_msg
-  - synthetic_graph
+  # - synthetic_graph
   # - bitcoin_alpha
   # - bitcoin_otc
 batch_data_manager:
@@ -47,6 +47,7 @@ batch_data_manager:
     initial_fraction: *initial_fraction
     max_steps: *max_steps
     load_full_nodes: *load_full_node
+    delimiter: "\t"
   college_msg:
     dataset_path: dataset/CollegeMsg.txt
     dataset_type: college_msg
