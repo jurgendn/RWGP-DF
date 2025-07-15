@@ -1,24 +1,15 @@
-"""
-Synchronous Dynamic Frontier Louvain algorithm implementation.
-
-This module provides the synchronous implementation of the Dynamic Frontier Louvain
-algorithm for community detection in dynamic networks.
-"""
-from collections import defaultdict
 from time import time
 from typing import Any, Callable, Dict, List, Literal, Optional, Text, Tuple
 
 import networkx as nx
-import numpy as np
 
-from src.components.dataset import SelectiveSampler
 from src.components.factory import (
     IntermediateResults,
     MethodDynamicResults,
 )
 from src.gp_df import separate_communities
-from src.models.community_info import CommunityUtils
 from src.models.base import LouvainMixin
+
 
 class GPDynamicFrontierLouvain(LouvainMixin):
     def __init__(

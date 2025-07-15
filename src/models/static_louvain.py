@@ -28,7 +28,6 @@ class StaticLouvain(LouvainMixin):
         )
         self.__shortname__ = "Static Louvain"
 
-
     def apply_batch_update(
         self,
         edge_deletions: Optional[List[Tuple]] = None,

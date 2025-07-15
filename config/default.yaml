@@ -16,7 +16,7 @@ target_datasets:
   # - email-eu-core
   # - sx-mathoverflow
   # - college_msg
-  # - synthetic_graph
+  - synthetic_graph
   # - bitcoin_alpha
   # - bitcoin_otc
 batch_data_manager:
