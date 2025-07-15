@@ -3,22 +3,60 @@ Main script to run DFLouvain benchmarks on the provided datasets.
 """
 import os
 from pathlib import Path
+from typing import Any, Dict, List, Text
 
-import pandas as pd
-import tabulate
+import networkx as nx
 import yaml
 
-from src.benchmarks import run_comprehensive_benchmark
+from src import GPDynamicFrontierLouvain, NaiveDynamicLouvain, StaticLouvain
+from src.benchmarks import Runner
 from src.data_loader import DatasetBatchManager, DatasetWindowTimeManager
 from src.utils import helpers
+from src.utils.plotter import Plotter
 
+
+def run_comprehensive_benchmark(
+    data_manager: DatasetBatchManager | DatasetWindowTimeManager,
+    dataset_config: Dict[Text, Any],
+):
+    full_nodes_config = dataset_config.copy()
+    full_nodes_config["load_full_nodes"] = True
+    
+    G, temporal_changes = data_manager.get_dataset(**dataset_config)
+    initial_communities = nx.algorithms.community.louvain_communities(G)
+
+    initial_communities_dict = {}
+    for community_id, community in enumerate(initial_communities): # type: ignore
+        for node in community:
+            initial_communities_dict[node] = community_id
+  
+    methods = {
+        # "Naive Dynamic Louvain": NaiveDynamicLouvain(
+        #     graph=G, initial_communities=initial_communities_dict, verbose=False
+        # ),
+        # "Delta Screening Louvain": DeltaScreeningLouvain(
+        #     graph=G, initial_communities=initial_communities_dict, verbose=False
+        # ),
+        # "Static Louvain": StaticLouvain(
+        #     graph=G, initial_communities=initial_communities_dict, verbose=False
+        # ),
+        "GP - Dynamic Frontier Louvain": GPDynamicFrontierLouvain(
+            graph=G,
+            initial_communities=initial_communities_dict,
+            verbose=False,
+            refine_version="v2-full",
+        ),
+    }
+    runner = Runner(
+        models=methods,
+        logger=False,
+        verbose=True,
+    )
+    results = runner.forward(G, temporal_changes)
+
+    return results
 
 def main():
-    """
-    Run comprehensive benchmarks on the College Message, Bitcoin Alpha, and Bitcoin OTC datasets.
-    """
-
-    print("Load configuration")
     with open("./config/default.yaml", "r") as file:
         config = yaml.safe_load(file)
     mode = config["mode"]
@@ -33,38 +71,34 @@ def main():
         data_config = config["window_frame_data_manager"]
     else:
         raise ValueError(f"Unsupported mode: {mode}")
-    print("Dynamic Frontier Louvain Benchmarking Suite")
-    print("=" * 50)
 
-
-    # Run benchmarks
-    benchmark = run_comprehensive_benchmark(
-        data_manager=data_manager,
-        target_datasets=target_datasets,
-        config=data_config,
-    )
+    plotter = Plotter()
 
     # Export results
     results_dir = Path(os.path.join(os.curdir, "results", f"{mode}_benchmark"))
     results_dir.mkdir(exist_ok=True)
 
-    # Export summary CSV
-    benchmark.export_results(os.path.join(results_dir, "benchmark_results.csv"))
-    # Create plots for each dataset
     for dataset_name, dataset_config in data_config.items():
-        if dataset_name in benchmark.results and dataset_name in target_datasets:
-            dataset_dir = Path(os.path.join(results_dir, dataset_name))
-            dataset_dir.mkdir(exist_ok=True)
-            # Create plot for the dataset
+        if dataset_name in target_datasets:
             filename = helpers.generate_plot_filename(
                 mode=mode,
                 dataset_config=dataset_config,
             )
+            results = run_comprehensive_benchmark(
+                data_manager=data_manager,
+                dataset_config=dataset_config,
+            )
+
+            dataset_dir = Path(os.path.join(results_dir, dataset_name))
+            dataset_dir.mkdir(exist_ok=True)
+            # Create plot for the dataset
             plot_path = os.path.join(
                 dataset_dir,
                 filename,
             )
-            benchmark.plot_results(dataset_name=dataset_name, save_path=str(plot_path))
+            plotter.plot_results(
+                dataset_name=dataset_name, results=results, save_path=plot_path
+            )
 
     print(f"\nBenchmark complete! Results saved to {results_dir}")
     print("\nFiles created:")

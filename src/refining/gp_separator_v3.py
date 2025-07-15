@@ -41,7 +41,11 @@ def split_community(graph: nx.Graph, community: List[int], steps: int = 5) -> Tu
         
     return V1, V2
 
-def separate_communities_v3(graph: nx.Graph, communities: Dict[int, int]) -> Dict[int, int]:
+def separate_communities_v3(
+    graph: nx.Graph,
+    communities: Dict[int, int],
+    full_communities: Dict[int, int] | None = None,
+) -> Dict[int, int]:
     """
     Optimized version of the community separation algorithm from v2.
     Maintains the original algorithm structure while adding performance optimizations.

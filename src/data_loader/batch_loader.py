@@ -1,313 +1,132 @@
-"""
-Data loading utilities for DFLouvain benchmarks.
-"""
-
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import networkx as nx
 import numpy as np
-import pandas as pd
+
+from src.components.dataset import TemporalChanges
 
 
-def load_sx_mathoverflow_dataset(
+def load_txt_dataset(
     file_path: str,
-    batch_range: float = 1e-3,
-    initial_fraction: float = 0.3,
-    max_steps: int | None = None,
-    load_full_nodes: bool = True,
-) -> Tuple[nx.Graph, List[Dict]]:
+    source_idx: int,
+    target_idx: int,
+    batch_range: float,
+    initial_fraction: float,
+    max_steps: int,
+    load_full_nodes: bool,
+    delimiter: str = " ",
+    num_batches: int = 100,
+    delete_insert_ratio: float = 0.8,
+) -> Tuple[nx.Graph, List[TemporalChanges]]:
     """
-    Load the College Message dataset and prepare it for dynamic analysis.
+    Load and process a dataset from a text file to create a dynamic graph and temporal changes.
 
-    Format: node1 node2 timestamp
+    This function reads data from a text file, creates the initial graph, and generates
+    batches of temporal changes (edge insertions/deletions) to simulate dynamic graph evolution.
 
     Args:
-        file_path: Path to CollegeMsg.txt
+        file_path (str): Path to the data file
+        source_idx (int): Index of the source node column in the file
+        target_idx (int): Index of the target node column in the file
+        batch_range (float): Fraction of data for each batch (0.0-1.0)
+        initial_fraction (float): Fraction of data used to create the initial graph
+        max_steps (int): Maximum number of temporal change steps
+        load_full_nodes (bool): Whether to load all nodes into the initial graph
+        num_batches (int): Maximum number of batches to create
+        delete_insert_ratio (float): Ratio of edge deletions to insertions in each batch
 
     Returns:
-        Tuple of (initial_graph, temporal_changes)
+        Tuple[nx.Graph, List[Dict[str, Any]]]:
+            - Initial NetworkX graph
+            - List of temporal changes
+
+    Processing steps:
+        1. Read data from file, skipping comment lines (starting with //)
+        2. Split data into initial and remaining parts
+        3. Create the initial graph from the initial data
+        4. Generate batches of changes from the remaining data
+        5. Each batch includes:
+            - New edge insertions
+            - Random edge deletions according to delete_insert_ratio
+
+    Example:
+        >>> graph, changes = load_txt_dataset(
+        ...     file_path="data.txt",
+        ...     source_idx=0,
+        ...     target_idx=1,
+        ...     batch_range=0.1,
+        ...     initial_fraction=0.2,
+        ...     max_steps=10,
+        ...     load_full_nodes=True
+        ... )
     """
-    # Read the data
     data = []
     full_nodes = set()
+
     with open(file_path, "r") as f:
         for line in f:
             if line.strip() and not line.startswith("//"):
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    node1, node2, timestamp = (
-                        int(parts[0]),
-                        int(parts[1]),
-                        int(parts[2]),
-                    )
-                    data.append((node1, node2, timestamp))
-                    full_nodes.add(node1)
-                    full_nodes.add(node2)
+                parts = line.strip().split(delimiter)
+                if len(parts) >= 2:
+                    node1, node2 = parts[source_idx], parts[target_idx]
+                    data.append((node1, node2))
+                    full_nodes.update([node1, node2])
 
-    # Sort by timestamp
-    data.sort(key=lambda x: x[2])
-
-    # Create initial graph with first 30% of edges
     split_point = int(len(data) * initial_fraction)
     initial_edges = data[:split_point]
+    remaining_edges = data[split_point:]
 
     G = nx.Graph()
-    
-    # Add all nodes to graph if load_full_nodes is True else only initial nodes
-    if load_full_nodes is True:
-        for node in full_nodes:
-            G.add_node(node)
+    if load_full_nodes:
+        G.add_nodes_from(full_nodes)
 
-    for node1, node2, _ in initial_edges:
+    for node1, node2 in initial_edges:
         if G.has_edge(node1, node2):
             G[node1][node2]["weight"] += 1
         else:
             G.add_edge(node1, node2, weight=1)
 
-    # Create temporal changes for remaining edges
-    remaining_edges = data[split_point:]
-    batch_size = int(split_point * batch_range)  # 10 time steps
-
+    batch_size = max(1, int(batch_range * len(data)))
     temporal_changes = []
-    for i in range(0, len(remaining_edges), batch_size):
-        batch = remaining_edges[i : i + batch_size]
-        insertions = [(node1, node2, 1) for node1, node2, _ in batch]
-        temporal_changes.append({"deletions": [], "insertions": insertions})
-    if max_steps is not None:
-        temporal_changes = temporal_changes[:max_steps]
-    return G, temporal_changes
 
+    for batch_idx in range(min(num_batches, len(remaining_edges) // batch_size + 1)):
+        start_idx = batch_idx * batch_size
+        end_idx = min(start_idx + batch_size, len(remaining_edges))
 
-def load_college_msg_dataset(
-    file_path: str,
-    batch_range: float = 1e-3,
-    initial_fraction: float = 0.3,
-    max_steps: int | None = None,
-    load_full_nodes: bool = True,
-) -> Tuple[nx.Graph, List[Dict]]:
-    """
-    Load the College Message dataset and prepare it for dynamic analysis.
+        if start_idx >= len(remaining_edges):
+            break
 
-    Format: node1 node2 timestamp
+        batch = remaining_edges[start_idx:end_idx]
+        insertions = [(node1, node2, 1) for node1, node2 in batch]
 
-    Args:
-        file_path: Path to CollegeMsg.txt
-
-    Returns:
-        Tuple of (initial_graph, temporal_changes)
-    """
-    # Read the data
-    data = []
-    full_nodes = set()
-    with open(file_path, "r") as f:
-        for line in f:
-            if line.strip() and not line.startswith("//"):
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    node1, node2, timestamp = (
-                        int(parts[0]),
-                        int(parts[1]),
-                        int(parts[2]),
-                    )
-                    data.append((node1, node2, timestamp))
-                    full_nodes.add(node1)
-                    full_nodes.add(node2)
-
-    # Sort by timestamp
-    data.sort(key=lambda x: x[2])
-
-    # Create initial graph with first 30% of edges
-    split_point = int(len(data) * initial_fraction)
-    initial_edges = data[:split_point]
-
-    # Add all nodes to graph
-    G = nx.Graph()
-    # Add all nodes to graph if load_full_nodes is True else only initial nodes
-    if load_full_nodes is True:
-        for node in full_nodes:
-            G.add_node(node)
-
-    for node1, node2, _ in initial_edges:
-        if G.has_edge(node1, node2):
-            G[node1][node2]["weight"] += 1
-        else:
-            G.add_edge(node1, node2, weight=1)
-
-    # Create temporal changes for remaining edges
-    remaining_edges = data[split_point:]
-    batch_size = int(split_point * batch_range)  # 10 time steps
-
-    temporal_changes = []
-    for i in range(0, len(remaining_edges), batch_size):
-        batch = remaining_edges[i : i + batch_size]
-        insertions = [(node1, node2, 1) for node1, node2, _ in batch]
-        temporal_changes.append({"deletions": [], "insertions": insertions})
-    if max_steps is not None:
-        temporal_changes = temporal_changes[:max_steps]
-    return G, temporal_changes
-
-
-def load_bitcoin_dataset(
-    file_path: str,
-    batch_range: float = 1e-3,
-    initial_fraction: float = 0.3,
-    max_steps: int | None = None,
-    load_full_nodes: bool = True,
-) -> Tuple[nx.Graph, List[Dict]]:
-    """
-    Load Bitcoin datasets (Alpha or OTC) and prepare them for dynamic analysis.
-
-    Format: source,target,rating,timestamp
-
-    Args:
-        file_path: Path to soc-sign-bitcoinalpha.csv or soc-sign-bitcoinotc.csv
-
-    Returns:
-        Tuple of (initial_graph, temporal_changes)
-    """
-    # Read the CSV data
-    df = pd.read_csv(
-        file_path, header=None, names=["source", "target", "rating", "timestamp"]
-    )
-
-    # Sort by timestamp
-    df = df.sort_values("timestamp")
-    full_nodes = set(df["source"]).union(set(df["target"]))
-    # Create initial graph with first 40% of edges
-    split_point = len(df) // 5 * 2
-    initial_data = df.iloc[:split_point]
-
-    # Add all nodes to graph
-    G = nx.Graph()
-    # Add all nodes to graph if load_full_nodes is True else only initial nodes
-    if load_full_nodes is True:
-        for node in full_nodes:
-            G.add_node(node)
-    # G.add_nodes_from(set(df["source"]).union(set(df["target"])))
-    for _, row in initial_data.iterrows():
-        source, target, rating = (
-            int(row["source"]),
-            int(row["target"]),
-            float(row["rating"]),
-        )
-        # Use absolute rating as weight (trust/distrust both create connections)
-        weight = abs(rating)
-
-        if G.has_edge(source, target):
-            G[source][target]["weight"] += weight
-        else:
-            G.add_edge(source, target, weight=weight)
-
-    # Create temporal changes for remaining edges
-    split_point = int(len(df) * initial_fraction)
-    remaining_data = df.iloc[split_point:]
-    batch_size = int(split_point * batch_range)
-
-    temporal_changes = []
-    for i in range(0, len(remaining_data), batch_size):
-        batch = remaining_data.iloc[i : i + batch_size]
-        insertions = []
         deletions = []
-
-        for _, row in batch.iterrows():
-            source, target, rating = (
-                int(row["source"]),
-                int(row["target"]),
-                float(row["rating"]),
+        current_edges = list(G.edges())
+        if current_edges:
+            num_deletions = min(
+                int(len(insertions) * delete_insert_ratio), len(current_edges)
             )
-            weight = abs(rating)
-
-            # Simulate some edge deletions (negative ratings could be seen as broken trust)
-            if (
-                rating < 0 and np.random.random() <= 1
-            ):  # 30% chance to delete on negative rating
-                if (source, target) not in deletions:
-                    deletions.append((source, target))
-            else:
-                insertions.append((source, target, weight))
-
-        temporal_changes.append({"deletions": deletions, "insertions": insertions})
-    if max_steps is not None:
-        temporal_changes = temporal_changes[:max_steps]
-    return G, temporal_changes
-
-
-def create_synthetic_dynamic_graph(
-    num_nodes: int = 100,
-    initial_edges: int = 200,
-    time_steps: int = 10,
-    max_steps: int | None = 100,
-    load_full_nodes: bool = True,
-) -> Tuple[nx.Graph, List[Dict]]:
-    """
-    Create a synthetic dynamic graph for testing purposes.
-
-    Args:
-        num_nodes: Number of nodes in the graph
-        initial_edges: Number of initial edges
-        time_steps: Number of temporal changes to generate
-
-    Returns:
-        Tuple of (initial_graph, temporal_changes)
-    """
-    # Create initial random graph
-    G = nx.erdos_renyi_graph(
-        num_nodes, initial_edges / (num_nodes * (num_nodes - 1) / 2)
-    )
-
-    # Add weights
-    for edge in G.edges():
-        G[edge[0]][edge[1]]["weight"] = np.random.exponential(1.0)
-
-    # Generate temporal changes
-    temporal_changes = []
-    all_possible_edges = [
-        (i, j) for i in range(num_nodes) for j in range(i + 1, num_nodes)
-    ]
-    existing_edges = list(G.edges())
-
-    for _ in range(time_steps):
-        # Random deletions (10-20% of existing edges)
-        num_deletions = np.random.randint(
-            len(existing_edges) // 10, len(existing_edges) // 5
-        )
-        deletions = np.random.choice(
-            len(existing_edges),
-            size=min(num_deletions, len(existing_edges)),
-            replace=False,
-        )
-        deletion_edges = [existing_edges[i] for i in deletions]
-
-        # Random insertions (15-25 new edges)
-        possible_new_edges = [
-            edge for edge in all_possible_edges if not G.has_edge(*edge)
-        ]
-        num_insertions = np.random.randint(15, 26)
-        if len(possible_new_edges) >= num_insertions:
-            insertion_indices = np.random.choice(
-                len(possible_new_edges), size=num_insertions, replace=False
-            )
-            insertion_edges = [
-                (
-                    possible_new_edges[i][0],
-                    possible_new_edges[i][1],
-                    np.random.exponential(1.0),
+            if num_deletions > 0:
+                deletion_indices = np.random.choice(
+                    len(current_edges), size=num_deletions, replace=False
                 )
-                for i in insertion_indices
-            ]
-        else:
-            insertion_edges = []
+                deletions = [current_edges[i] for i in deletion_indices]
+
+                G.remove_edges_from(deletions)
+
+        for node1, node2, weight in insertions:
+            if G.has_edge(node1, node2):
+                G[node1][node2]["weight"] += weight
+            else:
+                G.add_edge(node1, node2, weight=weight)
 
         temporal_changes.append(
-            {"deletions": deletion_edges, "insertions": insertion_edges}
+            TemporalChanges(
+                deletions=deletions,
+                insertions=insertions,
+            )
         )
 
-        # Update existing edges list for next iteration
-        for edge in deletion_edges:
-            if edge in existing_edges:
-                existing_edges.remove(edge)
-        for edge in insertion_edges:
-            existing_edges.append((edge[0], edge[1]))
     if max_steps is not None:
         temporal_changes = temporal_changes[:max_steps]
+
     return G, temporal_changes

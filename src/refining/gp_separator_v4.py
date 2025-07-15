@@ -4,7 +4,11 @@ from typing import Dict, List, Tuple
 import networkx as nx
 
 
-def separate_communities_v4(graph: nx.Graph, communities: Dict[int, int] = None) -> Dict[int, int]:
+def separate_communities_v4(
+    graph: nx.Graph,
+    communities: Dict[int, int] | None = None,
+    full_communities: Dict[int, int] | None = None,
+) -> Dict[int, int]:
     """
     Ultra-fast simplified community detection algorithm.
     Removes expensive operations while maintaining core functionality.

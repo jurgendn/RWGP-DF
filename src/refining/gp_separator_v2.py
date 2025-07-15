@@ -3,7 +3,11 @@ import numpy as np
 from typing import Dict, List, Tuple
 from pyinstrument import Profiler
 
-def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dict[int, int]:
+def separate_communities_v2(
+    graph: nx.Graph,
+    communities: Dict[int, int],
+    full_communities: Dict[int, List[int]] | None = None,
+) -> Dict[int, int]:
     """
     Splits a graph into communities based on modularity optimization.
 
@@ -189,28 +193,19 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         """
         if set(community1) == set(original_community) or set(community2) == set(original_community):
             return True
-        return (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community)) >= 0
-
-    # def recursive_divide(graph: nx.Graph, community: List[int], degrees: Dict[int, int], total_edges: int, partition: Dict[int, int]):
-    #     """
-    #     Recursively divides a community into sub-communities.
-
-    #     Args:
-    #         graph (nx.Graph): The input graph.
-    #         community (List[int]): List of nodes in the community to be divided.
-    #         degrees (Dict[int, int]): Node degrees.
-    #         total_edges (int): Total number of edges in the graph.
-    #         partition (Dict[int, int]): Community assignments for nodes.
-    #     """
-    #     C1, C2 = refine_partition(graph, community, degrees, total_edges)
-    #     is_valid_division = validate_division(graph, C1, C2, community)
-    #     if is_valid_division or len(C1) == 0 or len(C2) == 0:
-    #         new_community_id = max(partition.values(), default=0) + 1
-    #         for node in community:
-    #             partition[node] = new_community_id
-    #     else:
-    #         recursive_divide(graph, C1, degrees, total_edges, partition)
-    #         recursive_divide(graph, C2, degrees, total_edges, partition)
+        # Assume C = {C1, C2}
+        # Compute modularity for C1, C2, and original community
+        # Delta Q = Q(C1) + Q(C2) - Q(C)
+        # Keep if Delta Q > 0
+        delta_q = (compute_modularity(graph, community1) + compute_modularity(graph, community2) - compute_modularity(graph, original_community))
+        if delta_q > 0:
+            print(
+            f"Modularity 1: {compute_modularity(graph, community1)}",
+            f"Modularity 2: {compute_modularity(graph, community2)}",
+            f"Modularity original: {compute_modularity(graph, original_community)}",
+        )
+            return True
+        return False
 
     # Begin algorithm
     partition = {node: comm_id for node, comm_id in communities.items()}
@@ -220,6 +215,10 @@ def separate_communities_v2(graph: nx.Graph, communities: Dict[int, int]) -> Dic
         if len(nodes_in_community) > 1:
             C1, C2 = split_community(graph, nodes_in_community)
             if validate_division(graph, C1, C2, nodes_in_community):
+
+                print(
+                    f"Community {community_id} split into {len(C1)} and {len(C2)} nodes."
+                )
                 for node in C1:
                     partition[node] = community_id
                 for node in C2:
