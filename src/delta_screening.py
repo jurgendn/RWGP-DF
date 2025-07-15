@@ -1,19 +1,12 @@
-"""
-Delta-screening Louvain algorithm implementation.
-
-This module provides the delta-screening implementation of the Louvain
-algorithm for community detection in dynamic networks, using modularity-based
-scoring to determine affected vertices.
-"""
 from collections import defaultdict
 from time import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Text, Tuple
 
 import networkx as nx
 import numpy as np
 
-import wandb
 from src.community_info import CommunityUtils
+from src.components.factory import IntermediateResults
 
 
 class DeltaScreeningLouvain:
@@ -29,6 +22,7 @@ class DeltaScreeningLouvain:
     def __init__(
         self,
         graph: nx.Graph,
+        initial_communities: Optional[Dict[Any, int]] = None,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
@@ -55,9 +49,12 @@ class DeltaScreeningLouvain:
             self.graph = graph.to_undirected()
 
         # Initialize communities using NetworkX's Louvain algorithm
-        communities_dict = CommunityUtils.initialize_communities_with_networkx(
-            self.graph
-        )
+        if initial_communities is not None:
+            communities_dict = initial_communities
+        else:
+            communities_dict = CommunityUtils.initialize_communities_with_networkx(
+                self.graph
+            )
 
         # Convert to community assignment array
         self.community = np.zeros(len(self.nodes), dtype=int)
@@ -477,11 +474,11 @@ class DeltaScreeningLouvain:
         # Update community weights
         self.community_weights = self._calculate_community_weights()
 
-    def run_delta_screening_louvain(
+    def run(
         self,
         edge_deletions: Optional[List[Tuple]] = None,
         edge_insertions: Optional[List[Tuple]] = None,
-    ) -> Dict[Any, int]:
+    ) -> Dict[Text, IntermediateResults]:
         """
         Run complete Delta-screening Louvain algorithm.
 
@@ -519,20 +516,13 @@ class DeltaScreeningLouvain:
         runtime = time() - start_time
         modularity = self.get_modularity()
         affected_count = np.sum(self.affected)
-        
-        if wandb.run is not None:
-            wandb.log(
-                {
-                    "delta_modularity": modularity,
-                    "delta_runtime": runtime,
-                    "delta_affected_nodes": int(affected_count),
-                    "delta_total_nodes": len(self.nodes),
-                    "delta_screening_ratio": float(affected_count) / len(self.nodes) if len(self.nodes) > 0 else 0.0,
-                },
-                step=wandb.run.step,
-            )
-        
-        return community_assignment
+        res = IntermediateResults(
+            runtime=runtime,
+            modularity=modularity,
+            affected_nodes=affected_count,
+        )
+
+        return {"Delta Screening": res}
 
     def get_modularity(self) -> float:
         """
@@ -569,27 +559,3 @@ class DeltaScreeningLouvain:
             List of nodes marked as affected by delta-screening
         """
         return [self.nodes[i] for i in range(len(self.nodes)) if self.affected[i]]
-
-
-# Usage example
-if __name__ == "__main__":
-    # Create a sample graph
-    G = nx.karate_club_graph()
-    
-    # Define batch updates
-    edges_to_insert = [(0, 5, 1.0), (10, 15, 1.0)]
-    edges_to_delete = [(0, 1), (2, 3)]
-    
-    # Run Delta-screening
-    delta_algo = DeltaScreeningLouvain(G, verbose=True)
-    delta_communities = delta_algo.run_delta_screening_louvain(
-        edge_deletions=edges_to_delete,
-        edge_insertions=edges_to_insert
-    )
-    print("Delta-screening communities:", delta_communities)
-    
-    # Compare number of affected vertices
-    affected_nodes = delta_algo.get_affected_nodes()
-    print(f"Delta-screening affected vertices: {len(affected_nodes)}")
-    print(f"Total vertices: {len(G.nodes())}")
-    print(f"Screening ratio: {len(affected_nodes) / len(G.nodes()):.2%}")

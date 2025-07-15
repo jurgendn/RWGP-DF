@@ -11,24 +11,17 @@ from typing import Dict, List, Optional, Text, Tuple
 
 import networkx as nx
 
-from .batch_loader import (
-    create_synthetic_dynamic_graph,
-    load_bitcoin_dataset,
-    load_college_msg_dataset,
-    load_sx_mathoverflow_dataset,
-)
-from .window_loader import (
-    load_bitcoin_sliding_window,
-    load_college_msg_sliding_window,
-    load_sx_mathoverflow_sliding_window,
-)
+from src.components.dataset import TemporalChanges
+
+from .batch_loader import load_txt_dataset
+from .window_loader import load_txt_dataset_with_timestamps
 
 
 class BaseDatasetManager:
     """Base class for dataset managers with common functionality."""
 
     def __init__(
-        self, cache_dir: str = None, use_cache: bool = True, verbose: bool = True
+        self, cache_dir: str | None = None, use_cache: bool = True, verbose: bool = True
     ):
         """
         Initialize the dataset manager.
@@ -44,13 +37,13 @@ class BaseDatasetManager:
         self.use_cache = use_cache
         self.verbose = verbose
 
-    def _get_cache_filename(self, cache_key: str) -> str:
+    def _get_cache_filename(self, cache_key: str) -> str | None:
         """Generate a unique cache filename."""
         if not self.cache_dir:
             return None
         return os.path.join(self.cache_dir, f"{cache_key}.pkl")
 
-    def _get_from_cache(self, cache_key: str) -> Optional[Tuple[nx.Graph, List[Dict]]]:
+    def _get_from_cache(self, cache_key: str):
         """Try to load dataset from cache."""
         if not self.use_cache or not self.cache_dir:
             return None
@@ -67,7 +60,9 @@ class BaseDatasetManager:
                 print(f"Cache loading failed: {e}")
             return None
 
-    def _save_to_cache(self, cache_key: str, data: Tuple[nx.Graph, List[Dict]]) -> None:
+    def _save_to_cache(
+        self, cache_key: str, data: Tuple[nx.Graph, List[Dict] | List[TemporalChanges]]
+    ) -> None:
         """Save dataset to cache."""
         if not self.use_cache or not self.cache_dir:
             return
@@ -157,25 +152,32 @@ class DatasetBatchManager(BaseDatasetManager):
     def __init__(self, cache_dir=None, use_cache=True, verbose=True):
         super().__init__(cache_dir, use_cache, verbose)
         self.dataset_map = {
-            "synthetic": create_synthetic_dynamic_graph,
-            "college_msg": load_college_msg_dataset,
-            "bitcoin_alpha": load_bitcoin_dataset,
-            "bitcoin_otc": load_bitcoin_dataset,
-            "sx-mathoverflow": load_sx_mathoverflow_dataset,
-            "email-eu-core": load_college_msg_dataset,
-            "sx-askubuntu": load_college_msg_sliding_window,
+            "primary_school": load_txt_dataset,
+            "synthetic": load_txt_dataset,
+            "college_msg": load_txt_dataset,
+            "bitcoin_alpha": load_txt_dataset,
+            "bitcoin_otc": load_txt_dataset,
+            "sx-mathoverflow": load_txt_dataset,
+            "email-eu-core": load_txt_dataset,
+            "sx-askubuntu": load_txt_dataset,
+            "soc-reddit-hyperlink-body": load_txt_dataset,
+            "synthetic_graph": load_txt_dataset,
+            "default": load_txt_dataset,
         }
 
     def get_dataset(
         self,
         dataset_path: str,
         dataset_type: str,
+        source_idx: int,
+        target_idx: int,
         batch_range: float = 1e-3,
         initial_fraction: float = 0.3,
         max_steps: int = 100,
+        delimiter: str = " ",
         load_full_nodes: bool = True,
         force_reload: bool = False,
-    ) -> Tuple[nx.Graph, List[Dict[Text, List]]]:
+    ) -> Tuple[nx.Graph, List[TemporalChanges]]:
         """
         Get a dataset with batch-based loading parameters.
 
@@ -211,10 +213,13 @@ class DatasetBatchManager(BaseDatasetManager):
         # Call the loading function with the appropriate parameters
         G, temporal_changes = load_function(
             file_path=dataset_path,
+            source_idx=source_idx,
+            target_idx=target_idx,
             batch_range=batch_range,
             initial_fraction=initial_fraction,
             max_steps=max_steps,
             load_full_nodes=load_full_nodes,
+            delimiter=delimiter,
         )
 
         load_time = time.time() - start_time
@@ -242,26 +247,29 @@ class DatasetWindowTimeManager(BaseDatasetManager):
     def __init__(self, cache_dir=None, use_cache=True, verbose=True):
         super().__init__(cache_dir, use_cache, verbose)
         self.dataset_map = {
-            "synthetic": create_synthetic_dynamic_graph,
-            "college_msg": load_college_msg_sliding_window,
-            "bitcoin_alpha": load_bitcoin_sliding_window,
-            "bitcoin_otc": load_bitcoin_sliding_window,
-            "sx-mathoverflow": load_sx_mathoverflow_sliding_window,
-            "email-eu-core": load_college_msg_sliding_window,
-            "sx-askubuntu": load_college_msg_sliding_window,
+            "synthetic": load_txt_dataset_with_timestamps,
+            "college_msg": load_txt_dataset_with_timestamps,
+            "bitcoin_alpha": load_txt_dataset_with_timestamps,
+            "bitcoin_otc": load_txt_dataset_with_timestamps,
+            "sx-mathoverflow": load_txt_dataset_with_timestamps,
+            "email-eu-core": load_txt_dataset_with_timestamps,
+            "sx-askubuntu": load_txt_dataset_with_timestamps,
         }
 
     def get_dataset(
         self,
         dataset_path: str,
         dataset_type: str,
+        source_idx: int = 0,
+        target_idx: int = 1,
+        timestamp_idx: int = 2,
         window_size: int = 5,
         step_size: int = 1,
         initial_fraction: float = 0.3,
         max_steps: int | None = None,
         force_reload: bool = False,
         load_full_nodes: bool = True,
-    ) -> Tuple[nx.Graph, List[Dict]]:
+    ) -> Tuple[nx.Graph, List[TemporalChanges]]:
         """
         Get a dataset with sliding window-based loading parameters.
 
@@ -299,6 +307,9 @@ class DatasetWindowTimeManager(BaseDatasetManager):
         G, temporal_changes = load_function(
             file_path=dataset_path,
             window_size=window_size,
+            source_idx=source_idx,
+            target_idx=target_idx,
+            timestamp_idx=timestamp_idx,
             step_size=step_size,
             initial_fraction=initial_fraction,
             max_steps=max_steps,

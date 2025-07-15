@@ -1,19 +1,12 @@
-"""
-Naive-dynamic Louvain algorithm implementation.
-
-This module provides the naive-dynamic implementation of the Louvain
-algorithm for community detection in dynamic networks, processing all vertices 
-regardless of edge deletions and insertions.
-"""
 from collections import defaultdict
 from time import time
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple
 
 import networkx as nx
 import numpy as np
 
-import wandb
 from src.community_info import CommunityUtils
+from src.components.factory import IntermediateResults
 
 
 class NaiveDynamicLouvain:
@@ -29,6 +22,7 @@ class NaiveDynamicLouvain:
     def __init__(
         self,
         graph: nx.Graph,
+                initial_communities: Optional[Dict[Any, int]] = None,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
@@ -55,9 +49,12 @@ class NaiveDynamicLouvain:
             self.graph = graph.to_undirected()
 
         # Initialize communities using NetworkX's Louvain algorithm
-        communities_dict = CommunityUtils.initialize_communities_with_networkx(
-            self.graph
-        )
+        if initial_communities is not None:
+            communities_dict = initial_communities
+        else:
+            communities_dict = CommunityUtils.initialize_communities_with_networkx(
+                self.graph
+            )
 
         # Convert to community assignment array
         self.community = np.zeros(len(self.nodes), dtype=int)
@@ -381,11 +378,11 @@ class NaiveDynamicLouvain:
                 if self.verbose:
                     print(f"Could not calculate NetworkX modularity: {e}")
 
-    def run_naive_dynamic_louvain(
+    def run(
         self,
         edge_deletions: Optional[List[Tuple]] = None,
         edge_insertions: Optional[List[Tuple]] = None,
-    ) -> Dict[Any, int]:
+    ) -> Dict[Text, IntermediateResults]:
         """
         Run complete Naive-dynamic Louvain algorithm.
 
@@ -422,18 +419,13 @@ class NaiveDynamicLouvain:
         # Calculate runtime and modularity
         runtime = time() - start_time
         modularity = self.get_modularity()
-        
-        if wandb.run is not None:
-            wandb.log(
-                {
-                    "naive_modularity": modularity,
-                    "naive_runtime": runtime,
-                    "naive_processed_nodes": len(self.nodes),  # All nodes processed
-                },
-                step=wandb.run.step,
-            )
+        res = IntermediateResults(
+            runtime=runtime,
+            modularity=modularity,
+            affected_nodes=len(self.nodes),  # All nodes processed
+        )
 
-        return community_assignment
+        return {"Naive Dynamic Louvain": res}
 
     def get_modularity(self) -> float:
         """

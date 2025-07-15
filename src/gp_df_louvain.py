@@ -4,18 +4,22 @@ Synchronous Dynamic Frontier Louvain algorithm implementation.
 This module provides the synchronous implementation of the Dynamic Frontier Louvain
 algorithm for community detection in dynamic networks.
 """
+from collections import defaultdict
+from time import time
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple
 
-from typing import Dict, List, Tuple, Optional, Callable, Any
 import networkx as nx
 import numpy as np
-from collections import defaultdict
 
 from src.community_info import CommunityUtils
+from src.components.factory import (
+    IntermediateResults,
+    MethodDynamicResults,
+)
+from src.refining.separator import separate_communities
 
 
-# Chia 1 buoc first
-
-class DynamicFrontierLouvain:
+class GPDynamicFrontierLouvain:
     """
     Dynamic Frontier Louvain algorithm implementation for community detection
     in dynamic networks with changing edge structures.
@@ -28,9 +32,11 @@ class DynamicFrontierLouvain:
     def __init__(
         self,
         graph: nx.Graph,
+        initial_communities: Optional[Dict[Any, int]] = None,
         tolerance: float = 1e-2,
         max_iterations: int = 20,
-        verbose: bool = False,
+        refine_version: str = "v2",
+        verbose: bool = True,
     ) -> None:
         """
         Initialize Dynamic Frontier Louvain algorithm.
@@ -41,41 +47,31 @@ class DynamicFrontierLouvain:
             max_iterations: Maximum iterations per local-moving phase
             verbose: Whether to print progress information
         """
-        self.__shortname__ = "df"
+        self.__shortname__ = "gpdf"
         self.graph = graph.copy()
         self.tolerance = tolerance
         self.max_iterations = max_iterations
         self.verbose = verbose
         self.nodes = list(graph.nodes())
         self.node_to_idx = {node: idx for idx, node in enumerate(self.nodes)}
-
-        # Initialize communities using NetworkX's Louvain algorithm
-        communities_dict = CommunityUtils.initialize_communities_with_networkx(
-            self.graph
-        )
-
-        # Convert to community assignment array
+        self.refine_version = refine_version
+        if initial_communities is not None:
+            communities_dict = initial_communities
+        else:
+            communities_dict = CommunityUtils.initialize_communities_with_networkx(
+                self.graph
+            )
         self.community = np.zeros(len(self.nodes), dtype=int)
         for node, community_id in communities_dict.items():
             if node in self.node_to_idx:
                 node_idx = self.node_to_idx[node]
                 self.community[node_idx] = community_id
-
-        # Calculate initial weighted degrees and community weights
         self.weighted_degree = self._calculate_weighted_degrees()
         self.community_weights = self._calculate_community_weights()
         self.total_edge_weight = sum(self.weighted_degree) / 2
-
-        # Affected vertices tracking
         self.affected = np.zeros(len(self.nodes), dtype=bool)
 
     def _calculate_weighted_degrees(self) -> np.ndarray:
-        """
-        Calculate weighted degree for each node.
-
-        Returns:
-            Array of weighted degrees for each node
-        """
         degrees = np.zeros(len(self.nodes))
         for i, node in enumerate(self.nodes):
             degree = 0.0
@@ -86,12 +82,6 @@ class DynamicFrontierLouvain:
         return degrees
 
     def _calculate_community_weights(self) -> Dict[int, float]:
-        """
-        Calculate total edge weight for each community.
-
-        Returns:
-            Dictionary mapping community ID to total edge weight
-        """
         weights = defaultdict(float)
         for i, node in enumerate(self.nodes):
             community_id = self.community[i]
@@ -99,85 +89,43 @@ class DynamicFrontierLouvain:
         return dict(weights)
 
     def _get_neighbor_communities(self, node_idx: int) -> Dict[int, float]:
-        """
-        Get communities of neighboring nodes and their connection weights.
-
-        Args:
-            node_idx: Index of the node
-
-        Returns:
-            Dictionary mapping community ID to total connection weight
-        """
         node = self.nodes[node_idx]
         neighbor_communities = defaultdict(float)
-
         for neighbor in self.graph.neighbors(node):
             if neighbor in self.node_to_idx:
                 neighbor_idx = self.node_to_idx[neighbor]
                 neighbor_community = self.community[neighbor_idx]
                 weight = self.graph[node][neighbor].get("weight", 1.0)
                 neighbor_communities[neighbor_community] += weight
-
         return neighbor_communities
 
     def _calculate_delta_modularity(
         self, node_idx: int, target_community: int
     ) -> float:
-        """
-        Calculate change in modularity for moving node to target community.
-
-        Args:
-            node_idx: Index of the node to move
-            target_community: Target community ID
-
-        Returns:
-            Delta modularity value (positive values indicate improvement)
-        """
         current_community = self.community[node_idx]
-
         if current_community == target_community:
             return 0.0
-
-        # Get connection weights to current and target communities
         neighbor_communities = self._get_neighbor_communities(node_idx)
         k_i_to_c = neighbor_communities.get(target_community, 0.0)
         k_i_to_d = neighbor_communities.get(current_community, 0.0)
-
         k_i = self.weighted_degree[node_idx]
         sigma_c = self.community_weights.get(target_community, 0.0)
         sigma_d = self.community_weights.get(current_community, 0.0)
-
-        # Delta-modularity formula (Equation 2 from Louvain paper)
         delta_q = (1.0 / self.total_edge_weight) * (k_i_to_c - k_i_to_d) - (
             k_i / (2.0 * self.total_edge_weight**2)
         ) * (k_i + sigma_c - sigma_d)
-
         return delta_q
 
     def _move_node(self, node_idx: int, new_community: int) -> None:
-        """
-        Move node to new community and update community weights.
-
-        Args:
-            node_idx: Index of the node to move
-            new_community: Target community ID
-        """
         old_community = self.community[node_idx]
-
         if old_community == new_community:
             return
-
-        # Update community weights
         node_degree = self.weighted_degree[node_idx]
         self.community_weights[old_community] -= node_degree
         self.community_weights[new_community] = (
             self.community_weights.get(new_community, 0.0) + node_degree
         )
-
-        # Update community assignment
         self.community[node_idx] = new_community
-
-        # Mark neighbors as affected (Dynamic Frontier approach)
         node = self.nodes[node_idx]
         for neighbor in self.graph.neighbors(node):
             if neighbor in self.node_to_idx:
@@ -185,32 +133,15 @@ class DynamicFrontierLouvain:
                 self.affected[neighbor_idx] = True
 
     def _is_affected_function(self, node_idx: int) -> bool:
-        """Check if node is affected"""
         return self.affected[node_idx]
 
     def _in_affected_range_function(self, node_idx: int) -> bool:
-        """Check if node is in affected range (always True for incremental marking)"""
         return True
 
     def louvain_move(
         self, lambda_functions: Optional[Dict[str, Callable[[int], bool]]] = None
     ) -> int:
-        """
-        Perform local-moving phase of Louvain algorithm.
-
-        This implements the local moving phase where nodes are moved between
-        communities to maximize modularity. The algorithm continues until
-        convergence or max_iterations is reached.
-
-        Args:
-            lambda_functions: Dictionary with 'is_affected' and 'in_affected_range'
-                             callback functions. If None, processes all nodes.
-
-        Returns:
-            Number of iterations performed
-        """
         if lambda_functions is None:
-            # Default: process all nodes
             is_affected = self._is_affected_function
             in_affected_range = self._in_affected_range_function
         else:
@@ -220,82 +151,46 @@ class DynamicFrontierLouvain:
             in_affected_range = lambda_functions.get(
                 "in_affected_range", self._in_affected_range_function
             )
-
         num_iterations = 0
-
-        for iteration in range(self.max_iterations):
+        for _ in range(self.max_iterations):
             total_delta_modularity = 0.0
             moved_nodes = 0
-
-            # Process nodes (can be parallelized)
             for node_idx in range(len(self.nodes)):
                 if not in_affected_range(node_idx) or not is_affected(node_idx):
                     continue
-
                 current_community = self.community[node_idx]
-
-                # Find best community for this node
                 neighbor_communities = self._get_neighbor_communities(node_idx)
                 best_community = current_community
                 max_delta_modularity = 0.0
-
                 for community in neighbor_communities.keys():
                     if community != current_community:
                         delta_q = self._calculate_delta_modularity(node_idx, community)
                         if delta_q > max_delta_modularity:
                             max_delta_modularity = delta_q
                             best_community = community
-
-                # Move node if beneficial
                 if best_community != current_community and max_delta_modularity > 0:
                     self._move_node(node_idx, best_community)
                     total_delta_modularity += max_delta_modularity
                     moved_nodes += 1
-
             num_iterations += 1
-
-            if self.verbose:
-                print(
-                    f"Iteration {num_iterations}: moved {moved_nodes} nodes, "
-                    f"ΔQ = {total_delta_modularity:.6f}"
-                )
-
-            # Check for convergence
             if total_delta_modularity <= self.tolerance:
                 if self.verbose:
                     print("Converged!")
                 break
-
         return num_iterations
 
     def _add_new_nodes(self, new_nodes: List[Any]) -> None:
-        """
-        Add new nodes to the DFLouvain data structures.
-
-        This method handles the addition of new nodes that appear in temporal
-        changes but weren't in the original graph.
-
-        Args:
-            new_nodes: List of new node IDs to add
-        """
         for node in new_nodes:
             if node not in self.node_to_idx:
-                # Add node to NetworkX graph first
                 self.graph.add_node(node)
-
-                # Update our data structures
                 node_idx = len(self.nodes)
                 self.nodes.append(node)
                 self.node_to_idx[node] = node_idx
-
-                # Extend arrays for the new node
                 self.community = np.append(
                     self.community, node_idx
-                )  # Each node starts in its own community
+                )
                 self.weighted_degree = np.append(self.weighted_degree, 0.0)
                 self.affected = np.append(self.affected, False)
-
-                # Initialize community weight for the new community
                 self.community_weights[node_idx] = 0.0
 
     def apply_batch_update(
@@ -303,18 +198,6 @@ class DynamicFrontierLouvain:
         edge_deletions: Optional[List[Tuple]] = None,
         edge_insertions: Optional[List[Tuple]] = None,
     ) -> None:
-        """
-        Apply batch updates and mark affected vertices.
-
-        This method handles dynamic updates to the graph by processing batches
-        of edge deletions and insertions, while efficiently tracking which
-        vertices are affected by these changes.
-
-        Args:
-            edge_deletions: List of edges to delete [(node1, node2), ...]
-            edge_insertions: List of edges to insert [(node1, node2, weight), ...]
-        """
-        # Reset affected vertices
         self.affected.fill(False)
 
         # Process edge deletions
@@ -326,25 +209,19 @@ class DynamicFrontierLouvain:
                     node1, node2 = edge[0], edge[1]
 
                 if self.graph.has_edge(node1, node2):
-                    # Check if both nodes exist in our mapping
                     if node1 in self.node_to_idx and node2 in self.node_to_idx:
                         idx1, idx2 = self.node_to_idx[node1], self.node_to_idx[node2]
                         if self.community[idx1] == self.community[idx2]:
-                            # Mark both endpoints as affected if in same community
                             self.affected[idx1] = True
                             self.affected[idx2] = True
-
-                        # Remove edge and update degrees
                         weight = self.graph[node1][node2].get("weight", 1.0)
                         self.graph.remove_edge(node1, node2)
                         self.weighted_degree[idx1] -= weight
                         self.weighted_degree[idx2] -= weight
                         self.total_edge_weight -= weight
                     else:
-                        # Just remove the edge if nodes not in our mapping
                         self.graph.remove_edge(node1, node2)
 
-        # Process edge insertions
         if edge_insertions:
             for edge in edge_insertions:
                 if len(edge) == 3:
@@ -352,78 +229,121 @@ class DynamicFrontierLouvain:
                 else:
                     node1, node2 = edge[0], edge[1]
                     weight = 1.0
-
-                # Handle new nodes that weren't in the original graph
                 new_nodes = []
                 for node in [node1, node2]:
                     if node not in self.node_to_idx:
                         new_nodes.append(node)
-
                 if new_nodes:
                     self._add_new_nodes(new_nodes)
-
-                # Now we can safely access both nodes
                 idx1, idx2 = self.node_to_idx[node1], self.node_to_idx[node2]
                 if self.community[idx1] != self.community[idx2]:
-                    # Mark both endpoints as affected
                     self.affected[idx1] = True
                     self.affected[idx2] = True
-
-                # Add edge and update degrees
                 self.graph.add_edge(node1, node2, weight=weight)
                 self.weighted_degree[idx1] += weight
                 self.weighted_degree[idx2] += weight
                 self.total_edge_weight += weight
 
-        # Update community weights
-        if self.verbose and (edge_deletions or edge_insertions):
-            try:
-                nx_community = nx.algorithms.community.louvain_communities(
-                    self.graph, weight="weight"
-                )
-                modularity = nx.algorithms.community.modularity(
-                    self.graph, nx_community, weight="weight"
-                )
-                print(f"Current NetworkX modularity: {modularity:.6f}")
-            except Exception as e:
-                if self.verbose:
-                    print(f"Could not calculate NetworkX modularity: {e}")
-
         self.community_weights = self._calculate_community_weights()
 
-    def run_dynamic_frontier_louvain(
+    def run(
         self,
-        edge_deletions: Optional[List[Tuple]] = None,
-        edge_insertions: Optional[List[Tuple]] = None,
-    ) -> Dict[Any, int]:
-        """
-        Run complete Dynamic Frontier Louvain algorithm.
+        edge_deletions: List[Tuple],
+        edge_insertions: List[Tuple],
+    ) -> Dict[Text, IntermediateResults]:
+        df_results = MethodDynamicResults()
+        gp_df_results = MethodDynamicResults()
 
-        This method combines batch updates with the local moving phase to
-        efficiently update community structures in response to network changes.
+        start_time = time()
 
-        Args:
-            edge_deletions: List of edges to delete
-            edge_insertions: List of edges to insert
-
-        Returns:
-            Dictionary mapping nodes to community IDs
-        """
-        # Apply batch update
-        if edge_deletions or edge_insertions:
+        if edge_deletions is not None or edge_insertions is not None:
             self.apply_batch_update(edge_deletions, edge_insertions)
-
-        # Define lambda functions for affected vertices
         lambda_functions = {
             "is_affected": self._is_affected_function,
             "in_affected_range": self._in_affected_range_function,
         }
 
-        # Run local-moving phase
         self.louvain_move(lambda_functions)
+        df_runtime = time() - start_time
 
-        # Return community assignments
-        return {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        df_results = IntermediateResults(
+            runtime=df_runtime,
+            modularity=self.get_modularity(),
+            affected_nodes=len(self.get_affected_nodes()),
+        )
+
+        
+        new_community = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+
+        # Refine communities using GP - DF Louvain
+        separated = self.refine_communities(
+            new_community,
+            edge_deletions=edge_deletions,
+            edge_insertions=edge_insertions,
+        )
+        gp_runtime = time() - start_time
+        updated_community = new_community.copy()
+        updated_community.update(separated)
+
+        for node, community_id in updated_community.items():
+            if node in self.node_to_idx:
+                node_idx = self.node_to_idx[node]
+                self.community[node_idx] = community_id
+
+        gp_df_results = IntermediateResults(
+            runtime=gp_runtime,
+            modularity=self.get_modularity(),
+            affected_nodes=len(self.get_affected_nodes()),
+        )
+    
+
+        return {"Dynamic Frontier Louvain": df_results, "GP - Dynamic Frontier Louvain": gp_df_results}
+
+    def refine_communities(
+        self,
+        new_community: Dict[int, int],
+        edge_deletions: List[Tuple],
+        edge_insertions: List[Tuple],
+    ) -> Dict[Any, int]:
+
+        affected_nodes = set(self.get_affected_nodes())
+        affected_communities = []
+
+        for inserted_edge in edge_insertions:
+            if len(inserted_edge) == 2:
+                node1, node2 = inserted_edge
+            else:
+                node1, node2 = inserted_edge[0], inserted_edge[1]
+            if new_community.get(node1) != new_community.get(node2):
+                affected_communities.append(new_community.get(node1))
+                affected_communities.append(new_community.get(node2))
+        for deleted_edge in edge_deletions:
+            if new_community.get(deleted_edge[0]) == new_community.get(deleted_edge[1]):
+                # If the deleted edge connects two different communities, mark them as affected
+                affected_communities.append(new_community.get(deleted_edge[0]))
+                affected_communities.append(new_community.get(deleted_edge[1]))
+        
+        affected_comm_ids = set(
+            self.community[self.node_to_idx[node]] for node in affected_nodes
+        )
+        affected_communities = set(affected_communities)
+        affected_subgraph_nodes = [node for node in self.nodes if self.community[self.node_to_idx[node]] in affected_comm_ids]
+
+        affected_communities = {node: new_community[node] for node in affected_subgraph_nodes}
+        if len(affected_communities) == 0:
+            return new_community
+
+        for node in affected_subgraph_nodes:
+            node_idx = self.node_to_idx[node]
+            self.affected[node_idx] = True
+        affected_nodes = self.get_affected_nodes()
+
+        separated = separate_communities[self.refine_version](
+            self.graph,
+            communities=affected_communities,
+            full_communities=new_community,
+        )
+        return separated
 
     def get_modularity(self) -> float:
         """
