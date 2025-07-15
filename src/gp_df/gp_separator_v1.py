@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 import networkx as nx
 import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
-from src.community_info import CommunityUtils
+from src.models.community_info import CommunityUtils
 from pyinstrument import Profiler
 
 def separate_communities_v1(
@@ -26,7 +26,7 @@ def separate_communities_v1(
     with p:
         comm_dict = CommunityUtils.get_communities_as_sets(communities)
         origin_communities = [list(comm) for comm in comm_dict.values()]
-        current_modularity = nx.algorithms.community.quality.modularity(
+        current_modularity = nx.algorithms.community.modularity(
             G=graph,
             communities=origin_communities,
         )
@@ -46,7 +46,7 @@ def separate_communities_v1(
                 candidate_communities = [nodes if cid != comm_id else C1 for cid, nodes in comm_dict.items() if cid != comm_id]
                 candidate_communities.append(C1)
                 candidate_communities.append(C2)
-                candidate_modularity = nx.algorithms.community.quality.modularity(
+                candidate_modularity = nx.algorithms.community.modularity(
                     G=graph,
                     communities=candidate_communities,
                 )

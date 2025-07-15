@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Set, Tuple
 
 import networkx as nx
 
-from src.community_info import CommunityUtils
+from src.models.community_info import CommunityUtils
 
 
 def compute_modularity(graph: nx.Graph, community: List[int] | Set[int]) -> float:

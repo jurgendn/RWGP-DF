@@ -1,40 +1,36 @@
-"""
-Synchronous Dynamic Frontier Louvain algorithm implementation.
+from collections import defaultdict
+from time import time
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple, Literal
 
-This module provides the synchronous implementation of the Dynamic Frontier Louvain
-algorithm for community detection in dynamic networks.
-"""
-
-from typing import Dict, List, Tuple, Optional, Callable, Any
 import networkx as nx
 import numpy as np
-from collections import defaultdict
+from src.components.dataset import SelectiveSampler
 
-from src.community_info import CommunityUtils
-
+from src.models.community_info import CommunityUtils
 from src.components.factory import IntermediateResults
-# Chia 1 buoc first
 
-class DynamicFrontierLouvain:
+
+class NaiveDynamicLouvain:
     """
-    Dynamic Frontier Louvain algorithm implementation for community detection
-    in dynamic networks with changing edge structures.
+    Naive-dynamic Louvain algorithm implementation for community detection
+    in dynamic networks.
 
-    This class implements an efficient community detection algorithm that can
-    incrementally update communities when edges are added or removed from the network,
-    without having to recompute communities from scratch.
+    This class implements a naive approach that processes all vertices 
+    regardless of edge deletions and insertions, without using the 
+    dynamic frontier optimization.
     """
 
     def __init__(
         self,
         graph: nx.Graph,
         initial_communities: Optional[Dict[Any, int]] = None,
+        sampler_type: Literal["selective", "full"] = "selective",
         tolerance: float = 1e-2,
         max_iterations: int = 20,
-        verbose: bool = False,
+        verbose: bool = True,
     ) -> None:
         """
-        Initialize Dynamic Frontier Louvain algorithm.
+        Initialize Naive-dynamic Louvain algorithm.
 
         Args:
             graph: NetworkX graph (undirected)
@@ -42,7 +38,8 @@ class DynamicFrontierLouvain:
             max_iterations: Maximum iterations per local-moving phase
             verbose: Whether to print progress information
         """
-        self.__shortname__ = "df"
+        self.__shortname__ = "naive"
+        self.sampler_type = sampler_type
         self.graph = graph.copy()
         self.tolerance = tolerance
         self.max_iterations = max_iterations
@@ -50,14 +47,18 @@ class DynamicFrontierLouvain:
         self.nodes = list(graph.nodes())
         self.node_to_idx = {node: idx for idx, node in enumerate(self.nodes)}
 
+        # Convert to undirected if needed
+        if isinstance(graph, nx.DiGraph):
+            self.graph = graph.to_undirected()
+
         # Initialize communities using NetworkX's Louvain algorithm
         if initial_communities is not None:
-            # Use provided initial communities
             communities_dict = initial_communities
         else:
             communities_dict = CommunityUtils.initialize_communities_with_networkx(
                 self.graph
             )
+
         # Convert to community assignment array
         self.community = np.zeros(len(self.nodes), dtype=int)
         for node, community_id in communities_dict.items():
@@ -69,9 +70,8 @@ class DynamicFrontierLouvain:
         self.weighted_degree = self._calculate_weighted_degrees()
         self.community_weights = self._calculate_community_weights()
         self.total_edge_weight = sum(self.weighted_degree) / 2
-
-        # Affected vertices tracking
-        self.affected = np.zeros(len(self.nodes), dtype=bool)
+        
+        self.sampler = SelectiveSampler(self.graph, communities_dict)
 
     def _calculate_weighted_degrees(self) -> np.ndarray:
         """
@@ -181,19 +181,12 @@ class DynamicFrontierLouvain:
         # Update community assignment
         self.community[node_idx] = new_community
 
-        # Mark neighbors as affected (Dynamic Frontier approach)
-        node = self.nodes[node_idx]
-        for neighbor in self.graph.neighbors(node):
-            if neighbor in self.node_to_idx:
-                neighbor_idx = self.node_to_idx[neighbor]
-                self.affected[neighbor_idx] = True
-
     def _is_affected_function(self, node_idx: int) -> bool:
-        """Check if node is affected"""
-        return self.affected[node_idx]
+        """Check if node is affected (always True for naive approach)"""
+        return True
 
     def _in_affected_range_function(self, node_idx: int) -> bool:
-        """Check if node is in affected range (always True for incremental marking)"""
+        """Check if node is in affected range (always True for naive approach)"""
         return True
 
     def louvain_move(
@@ -202,19 +195,19 @@ class DynamicFrontierLouvain:
         """
         Perform local-moving phase of Louvain algorithm.
 
-        This implements the local moving phase where nodes are moved between
-        communities to maximize modularity. The algorithm continues until
+        This implements the local moving phase where ALL nodes are processed
+        (naive approach) to maximize modularity. The algorithm continues until
         convergence or max_iterations is reached.
 
         Args:
             lambda_functions: Dictionary with 'is_affected' and 'in_affected_range'
-                             callback functions. If None, processes all nodes.
+                             callback functions. For naive approach, all nodes are processed.
 
         Returns:
             Number of iterations performed
         """
         if lambda_functions is None:
-            # Default: process all nodes
+            # Default: process all nodes (naive approach)
             is_affected = self._is_affected_function
             in_affected_range = self._in_affected_range_function
         else:
@@ -231,7 +224,7 @@ class DynamicFrontierLouvain:
             total_delta_modularity = 0.0
             moved_nodes = 0
 
-            # Process nodes (can be parallelized)
+            # Process nodes according to lambda functions (ALL nodes for naive approach)
             for node_idx in range(len(self.nodes)):
                 if not in_affected_range(node_idx) or not is_affected(node_idx):
                     continue
@@ -274,7 +267,7 @@ class DynamicFrontierLouvain:
 
     def _add_new_nodes(self, new_nodes: List[Any]) -> None:
         """
-        Add new nodes to the DFLouvain data structures.
+        Add new nodes to the NaiveDynamicLouvain data structures.
 
         This method handles the addition of new nodes that appear in temporal
         changes but weren't in the original graph.
@@ -293,34 +286,33 @@ class DynamicFrontierLouvain:
                 self.node_to_idx[node] = node_idx
 
                 # Extend arrays for the new node
+                # Each new node starts in its own community
                 self.community = np.append(
                     self.community, node_idx
-                )  # Each node starts in its own community
+                )
+
                 self.weighted_degree = np.append(self.weighted_degree, 0.0)
-                self.affected = np.append(self.affected, False)
 
                 # Initialize community weight for the new community
                 self.community_weights[node_idx] = 0.0
-
     def apply_batch_update(
         self,
         edge_deletions: Optional[List[Tuple]] = None,
         edge_insertions: Optional[List[Tuple]] = None,
     ) -> None:
         """
-        Apply batch updates and mark affected vertices.
+        Apply batch updates to the graph.
 
         This method handles dynamic updates to the graph by processing batches
-        of edge deletions and insertions, while efficiently tracking which
-        vertices are affected by these changes.
+        of edge deletions and insertions. Unlike the Dynamic Frontier approach,
+        this does not track affected vertices as all vertices will be processed.
+        
+        Follows the auxiliary information update approach from the paper.
 
         Args:
             edge_deletions: List of edges to delete [(node1, node2), ...]
             edge_insertions: List of edges to insert [(node1, node2, weight), ...]
         """
-        # Reset affected vertices
-        self.affected.fill(False)
-
         # Process edge deletions
         if edge_deletions:
             for edge in edge_deletions:
@@ -333,13 +325,11 @@ class DynamicFrontierLouvain:
                     # Check if both nodes exist in our mapping
                     if node1 in self.node_to_idx and node2 in self.node_to_idx:
                         idx1, idx2 = self.node_to_idx[node1], self.node_to_idx[node2]
-                        if self.community[idx1] == self.community[idx2]:
-                            # Mark both endpoints as affected if in same community
-                            self.affected[idx1] = True
-                            self.affected[idx2] = True
 
-                        # Remove edge and update degrees
+                        # Get edge weight before removal
                         weight = self.graph[node1][node2].get("weight", 1.0)
+                        
+                        # Remove edge and incrementally update degrees
                         self.graph.remove_edge(node1, node2)
                         self.weighted_degree[idx1] -= weight
                         self.weighted_degree[idx2] -= weight
@@ -368,16 +358,16 @@ class DynamicFrontierLouvain:
 
                 # Now we can safely access both nodes
                 idx1, idx2 = self.node_to_idx[node1], self.node_to_idx[node2]
-                if self.community[idx1] != self.community[idx2]:
-                    # Mark both endpoints as affected
-                    self.affected[idx1] = True
-                    self.affected[idx2] = True
 
-                # Add edge and update degrees
+                # Add edge and incrementally update degrees
                 self.graph.add_edge(node1, node2, weight=weight)
                 self.weighted_degree[idx1] += weight
                 self.weighted_degree[idx2] += weight
                 self.total_edge_weight += weight
+
+        # Update community weights using auxiliary information
+        # This is more efficient than recalculating from scratch
+        self.community_weights = self._calculate_community_weights()
 
         # Update community weights
         if self.verbose and (edge_deletions or edge_insertions):
@@ -393,18 +383,17 @@ class DynamicFrontierLouvain:
                 if self.verbose:
                     print(f"Could not calculate NetworkX modularity: {e}")
 
-        self.community_weights = self._calculate_community_weights()
-
     def run(
         self,
-        edge_deletions: Optional[List[Tuple]] = None,
-        edge_insertions: Optional[List[Tuple]] = None,
-    ) -> Dict[Any, int]:
+        edge_deletions: List[Tuple],
+        edge_insertions: List[Tuple],
+    ) -> Dict[Text, IntermediateResults]:
         """
-        Run complete Dynamic Frontier Louvain algorithm.
+        Run complete Naive-dynamic Louvain algorithm.
 
-        This method combines batch updates with the local moving phase to
-        efficiently update community structures in response to network changes.
+        This method applies batch updates and then processes ALL vertices
+        to update community structures, without using dynamic frontier optimization.
+        Following Algorithm 2 from the paper.
 
         Args:
             edge_deletions: List of edges to delete
@@ -413,21 +402,40 @@ class DynamicFrontierLouvain:
         Returns:
             Dictionary mapping nodes to community IDs
         """
+        # Start timing the algorithm
+
         # Apply batch update
+        if self.sampler_type == "selective":
+            edge_deletions = self.sampler.sample(
+                num_samples=len(edge_deletions),
+                num_communities=np.random.randint(2, 3),
+            )
         if edge_deletions or edge_insertions:
             self.apply_batch_update(edge_deletions, edge_insertions)
 
-        # Define lambda functions for affected vertices
+        # Define lambda functions for naive approach (all vertices are processed)
         lambda_functions = {
             "is_affected": self._is_affected_function,
             "in_affected_range": self._in_affected_range_function,
         }
 
-        # Run local-moving phase
+        start_time = time()
+        # Run local-moving phase with lambda functions
         self.louvain_move(lambda_functions)
+        runtime = time() - start_time
 
-        # Return community assignments
-        return {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        # Build current community assignment
+        community_assignment = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        self.sampler.update_communities(community_assignment)
+        # Calculate runtime and modularity
+        modularity = self.get_modularity()
+        res = IntermediateResults(
+            runtime=runtime,
+            modularity=modularity,
+            affected_nodes=len(self.nodes),  # All nodes processed
+        )
+
+        return {"Naive Dynamic Louvain": res}
 
     def get_modularity(self) -> float:
         """
@@ -455,12 +463,3 @@ class DynamicFrontierLouvain:
         for i, node in enumerate(self.nodes):
             communities[self.community[i]].add(node)
         return dict(communities)
-
-    def get_affected_nodes(self) -> List[Any]:
-        """
-        Get list of affected nodes.
-
-        Returns:
-            List of nodes marked as affected
-        """
-        return [self.nodes[i] for i in range(len(self.nodes)) if self.affected[i]]

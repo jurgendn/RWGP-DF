@@ -1,11 +1,11 @@
-from src.refining.gp_separator_v1 import separate_communities_v1
-from src.refining.gp_separator_v2 import separate_communities_v2
-from src.refining.gp_separator_v2_full import separate_communities_v2_full
-from src.refining.gp_separator_v3 import (
+from .gp_separator_v1 import separate_communities_v1
+from .gp_separator_v2 import separate_communities_v2
+from .gp_separator_v2_full import separate_communities_v2_full
+from .gp_separator_v3 import (
     separate_communities_v3,
     separate_communities_v3_ultra_fast,
 )
-from src.refining.gp_separator_v4 import separate_communities_v4
+from .gp_separator_v4 import separate_communities_v4
 
 separate_communities = {
     "v1": separate_communities_v1,
