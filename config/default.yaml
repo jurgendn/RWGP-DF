@@ -2,21 +2,23 @@ mode: "batch" # Options: "batch", "window_frame"
 # mode: "window_frame" # Options: "batch", "window_frame"
 
 default_configs:
-  load_full_nodes: &load_full_node false # Options: true, false
-  max_steps: &max_steps 100 # Maximum number of steps for the benchmark
+  load_full_nodes: &load_full_node true # Options: true, false
+  max_steps: &max_steps 50 # Maximum number of steps for the benchmark
   initial_fraction: &initial_fraction 0.5 # Initial fraction of nodes to consider in the benchmark
-  batch_range: &batch_range 0.01 # Initial fraction of nodes to consider in the benchmark
+  batch_range: &batch_range 0.005 # Initial fraction of nodes to consider in the benchmark
   delimiter: &delimiter " " # Delimiter for the dataset files
+  delete_insert_ratio: &delete_insert_ratio 0.5 # Ratio of delete to insert operations in the dynamic graph
 
 # Options: "college_msg", "bitcoin_alpha", "bitcoin_otc", "sx-mathoverflow"
 target_datasets:
   # - soc-reddit-hyperlink-body
-  - primary_school
+  # - primary_school
   # - sx-askubuntu
   # - email-eu-core
   # - sx-mathoverflow
   # - college_msg
-  - synthetic_graph
+  # - synthetic_graph
+  - synthetic_graph_1
   # - bitcoin_alpha
   # - bitcoin_otc
 batch_data_manager:
@@ -25,8 +27,19 @@ batch_data_manager:
     dataset_type: synthetic_graph
     source_idx: 0
     target_idx: 1
-    batch_range: *batch_range
-    initial_fraction: *initial_fraction
+    batch_range: 0.06854377974634066
+    initial_fraction: 0.5999726245490591
+    delete_insert_ratio: 0.7426740798576744
+    max_steps: 10
+    load_full_nodes: *load_full_node
+  synthetic_graph_1:
+    dataset_path: dataset/synthetic_graph_1.txt
+    dataset_type: synthetic_graph
+    source_idx: 0
+    target_idx: 1
+    batch_range: 0.03493411045729308
+    initial_fraction: 0.3943987551022996
+    delete_insert_ratio: 0.7869968204570993
     max_steps: *max_steps
     load_full_nodes: *load_full_node
   soc-reddit-hyperlink-body:
@@ -38,6 +51,7 @@ batch_data_manager:
     initial_fraction: *initial_fraction
     max_steps: *max_steps
     load_full_nodes: *load_full_node
+    delete_insert_ratio: *delete_insert_ratio
   primary_school:
     dataset_path: dataset/primaryschool.csv
     dataset_type: primary_school
@@ -48,6 +62,7 @@ batch_data_manager:
     max_steps: *max_steps
     load_full_nodes: *load_full_node
     delimiter: "\t"
+    delete_insert_ratio: *delete_insert_ratio
   college_msg:
     dataset_path: dataset/CollegeMsg.txt
     dataset_type: college_msg
@@ -57,6 +72,7 @@ batch_data_manager:
     initial_fraction: *initial_fraction
     max_steps: *max_steps
     load_full_nodes: *load_full_node
+    delete_insert_ratio: *delete_insert_ratio
   email-eu-core:
     dataset_path: dataset/email-Eu-core-temporal.txt
     dataset_type: email-eu-core
@@ -66,6 +82,7 @@ batch_data_manager:
     initial_fraction: *initial_fraction
     max_steps: *max_steps
     load_full_nodes: *load_full_node
+    delete_insert_ratio: *delete_insert_ratio
   sx-askubuntu:
     dataset_path: dataset/sx-askubuntu.txt
     dataset_type: sx-askubuntu

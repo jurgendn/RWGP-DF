@@ -16,6 +16,7 @@ class DynamicFrontierLouvain(LouvainMixin):
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = False,
+        num_communities_range: Tuple[int, int] = (1, 5),
     ) -> None:
         super().__init__(
             graph=graph,
@@ -24,6 +25,7 @@ class DynamicFrontierLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
+            num_communities_range=num_communities_range
         )
         self.__shortname__ = "df"
 
@@ -164,9 +166,11 @@ class DynamicFrontierLouvain(LouvainMixin):
         self.sampler.update_communities(
             {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
         )
+        self.sampler.update_graph(self.graph)
         res = IntermediateResults(
             runtime=runtime,
             modularity=self.get_modularity(),
             affected_nodes=len(self.get_affected_nodes()),
+            num_communities=len(set(self.community)),
         )
         return {"DF Louvain": res}

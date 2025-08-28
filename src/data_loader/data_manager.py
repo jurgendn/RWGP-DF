@@ -149,7 +149,7 @@ class DatasetBatchManager(BaseDatasetManager):
     based loading, where data is split into initial fraction and batches.
     """
 
-    def __init__(self, cache_dir=None, use_cache=True, verbose=True):
+    def __init__(self, cache_dir=None, use_cache=True, verbose=False):
         super().__init__(cache_dir, use_cache, verbose)
         self.dataset_map = {
             "primary_school": load_txt_dataset,
@@ -177,6 +177,7 @@ class DatasetBatchManager(BaseDatasetManager):
         delimiter: str = " ",
         load_full_nodes: bool = True,
         force_reload: bool = False,
+        delete_insert_ratio: float = 0.5,
     ) -> Tuple[nx.Graph, List[TemporalChanges]]:
         """
         Get a dataset with batch-based loading parameters.
@@ -207,7 +208,8 @@ class DatasetBatchManager(BaseDatasetManager):
         # Load dataset based on type and parameters
         start_time = time.time()
         if dataset_type not in self.dataset_map:
-            raise ValueError(f"Unknown dataset type: {dataset_type}")
+            load_function = self.dataset_map.get("default", None)
+            # raise ValueError(f"Unknown dataset type: {dataset_type}")
         # Load the dataset using the appropriate function
         load_function = self.dataset_map[dataset_type]
         # Call the loading function with the appropriate parameters
@@ -220,6 +222,7 @@ class DatasetBatchManager(BaseDatasetManager):
             max_steps=max_steps,
             load_full_nodes=load_full_nodes,
             delimiter=delimiter,
+            delete_insert_ratio=delete_insert_ratio,
         )
 
         load_time = time.time() - start_time

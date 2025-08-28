@@ -6,6 +6,7 @@ from .gp_separator_v3 import (
     separate_communities_v3_ultra_fast,
 )
 from .gp_separator_v4 import separate_communities_v4
+from .gp_separator_v5 import separate_communities_v5
 
 separate_communities = {
     "v1": separate_communities_v1,
@@ -14,4 +15,5 @@ separate_communities = {
     "v3": separate_communities_v3,
     "v3_fast": separate_communities_v3_ultra_fast,
     "v4": separate_communities_v4,
+    "v5": separate_communities_v5,
 }

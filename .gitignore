@@ -18,6 +18,9 @@ notebooks
 *.ipynb
 results/
 
+# MLFlow
+mlruns/
+
 # Distribution / packaging
 .Python
 build/

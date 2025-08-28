@@ -211,7 +211,7 @@ class CommunityUtils:
         # Use networkx's built-in community detection
         # communities_lv: List[Set[int]]
         communities = {}
-        communities_lv = nx.algorithms.community.louvain_communities(graph)
+        communities_lv = nx.algorithms.community.louvain_communities(graph, seed=42)
         for community_id, community in enumerate(communities_lv):  # type: ignore
             for node in community:
                 communities[node] = community_id

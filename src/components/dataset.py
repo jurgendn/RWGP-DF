@@ -1,9 +1,15 @@
+import os
+import random
 from typing import Dict, List, Text, Tuple
 
 import networkx as nx
 import numpy as np
 from pydantic import BaseModel
 
+SEED = 42
+os.environ["PYTHONHASHSEED"] = f"{SEED}"
+np.random.seed(SEED)
+random.seed(SEED)
 
 class TemporalChanges(BaseModel):
     deletions: List[Tuple]
@@ -25,14 +31,20 @@ class SelectiveSampler:
     def update_communities(self, communities: Dict[int, int]):
         self.communities = communities
 
+    def update_graph(self, G: nx.Graph):
+        self.G = G
+        self.num_static_edges = G.number_of_edges()
+
     def __is_eligible_to_remove(
         self, u: int, v: int, target_communities: List[int] | np.ndarray
     ) -> bool:
         """Check if an edge can be removed based on community membership."""
-        return (
-            self.communities[u] == self.communities[v]
-            and self.communities[u] in target_communities
-        )
+        community_u = self.communities[u]
+        community_v = self.communities[v]
+
+        is_eligible = community_u == community_v and community_u in target_communities
+
+        return is_eligible
 
     def sample(self, num_samples: int) -> List[Tuple]:
         """Sampling edges from the graph based on community membership.
@@ -44,7 +56,8 @@ class SelectiveSampler:
 
         Returns:
             List[Tuple]: _description_
-        """        
+        """
+        np.random.seed(42)
         shuffled_edges = np.random.permutation(list(self.G.edges()))
         communities_list = list(self.communities.values())
         num_communities = np.random.randint(
