@@ -17,6 +17,7 @@ class StaticLouvain(LouvainMixin):
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
+        num_communities_range: Tuple[int, int] = (1, 5),
     ) -> None:
         super().__init__(
             graph=graph,
@@ -25,6 +26,7 @@ class StaticLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
+            num_communities_range=num_communities_range,
         )
         self.__shortname__ = "Static Louvain"
 
@@ -80,10 +82,12 @@ class StaticLouvain(LouvainMixin):
         self.sampler.update_communities(
             {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
         )
+        self.sampler.update_graph(self.graph)
         modularity_score = modularity(self.graph, communities)
         res = IntermediateResults(
             runtime=runtime,
             modularity=modularity_score,
             affected_nodes=len(self.nodes),  # All nodes processed
+            num_communities=len(communities), # type: ignore
         )
         return {"Static Louvain": res}

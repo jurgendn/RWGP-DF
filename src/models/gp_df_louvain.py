@@ -1,3 +1,4 @@
+import json
 from time import time
 from typing import Any, Callable, Dict, List, Literal, Optional, Text, Tuple
 
@@ -21,6 +22,7 @@ class GPDynamicFrontierLouvain(LouvainMixin):
         max_iterations: int = 20,
         refine_version: str = "v2",
         verbose: bool = True,
+        num_communities_range: Tuple[int, int] = (1, 5),
     ) -> None:
         super().__init__(
             graph=graph,
@@ -29,6 +31,7 @@ class GPDynamicFrontierLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
+            num_communities_range=num_communities_range,
         )
 
         self.__shortname__ = "gpdf"
@@ -176,8 +179,10 @@ class GPDynamicFrontierLouvain(LouvainMixin):
             runtime=df_runtime,
             modularity=self.get_modularity(),
             affected_nodes=len(self.get_affected_nodes()),
+            num_communities=len(set(self.community)),
         )
         new_community = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        df_community = new_community.copy()
         # Refine communities using GP - DF Louvain
         separated = self.refine_communities(
             new_community,
@@ -193,12 +198,30 @@ class GPDynamicFrontierLouvain(LouvainMixin):
                 self.community[node_idx] = community_id
 
         self.sampler.update_communities(updated_community)
+        self.sampler.update_graph(self.graph)
         gp_df_results = IntermediateResults(
             runtime=gp_runtime,
             modularity=self.get_modularity(),
             affected_nodes=len(self.get_affected_nodes()),
+            num_communities=len(set(self.community)),
         )
-        return {"Dynamic Frontier Louvain": df_results, "GP - Dynamic Frontier Louvain": gp_df_results}
+        if gp_df_results.modularity > df_results.modularity:
+            gp_df_community = updated_community.copy()
+            # Convert np.Int64 to int for JSON serialization
+            gp_df_community = {
+                node: int(community_id) for node, community_id in gp_df_community.items()
+            }
+            df_community = {
+                node: int(community_id) for node, community_id in df_community.items()
+            }
+            comparator = {
+                "DF Louvain": df_community,
+                "GP - Dynamic Frontier Louvain": gp_df_community,
+            }
+            with open("./results/df_vs_gp_df_results.json", "w") as f:
+                json.dump(comparator, f, indent=4)
+        return {"DF Louvain": df_results, "GP - Dynamic Frontier Louvain": gp_df_results}
+        return {"GP - Dynamic Frontier Louvain": gp_df_results}
 
     def refine_communities(
         self,
@@ -208,21 +231,19 @@ class GPDynamicFrontierLouvain(LouvainMixin):
     ) -> Dict[Any, int]:
 
         affected_nodes = set(self.get_affected_nodes())
-        affected_communities = []
+        affected_communities = set()
 
-        for inserted_edge in edge_insertions:
-            if len(inserted_edge) == 2:
-                node1, node2 = inserted_edge
-            else:
-                node1, node2 = inserted_edge[0], inserted_edge[1]
-            if new_community.get(node1) != new_community.get(node2):
-                affected_communities.append(new_community.get(node1))
-                affected_communities.append(new_community.get(node2))
+        # for inserted_edge in edge_insertions:
+        #     if len(inserted_edge) == 2:
+        #         node1, node2 = inserted_edge
+        #     else:
+        #         node1, node2 = inserted_edge[0], inserted_edge[1]
+        #     if new_community.get(node1) != new_community.get(node2):
+        #         affected_communities.add(new_community.get(node1))
+        #         affected_communities.add(new_community.get(node2))
         for deleted_edge in edge_deletions:
             if new_community.get(deleted_edge[0]) == new_community.get(deleted_edge[1]):
-                # If the deleted edge connects two different communities, mark them as affected
-                affected_communities.append(new_community.get(deleted_edge[0]))
-                affected_communities.append(new_community.get(deleted_edge[1]))
+                affected_communities.add(new_community.get(deleted_edge[0]))
         
         affected_comm_ids = set(
             self.community[self.node_to_idx[node]] for node in affected_nodes

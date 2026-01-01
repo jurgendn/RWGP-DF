@@ -18,6 +18,7 @@ class DeltaScreeningLouvain(LouvainMixin):
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
+        num_communities_range: Tuple[int, int] = (1, 5),
     ) -> None:
         super().__init__(
             graph=graph,
@@ -26,6 +27,7 @@ class DeltaScreeningLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
+            num_communities_range=num_communities_range,
         )
         self.__shortname__ = "delta"
         self.previous_community = None
@@ -213,9 +215,11 @@ class DeltaScreeningLouvain(LouvainMixin):
         runtime = time() - start_time
         community_assignment = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
         self.sampler.update_communities(community_assignment)
+        self.sampler.update_graph(self.graph)
         res = IntermediateResults(
             runtime=runtime,
             modularity=self.get_modularity(),
             affected_nodes=np.sum(self.affected),
+            num_communities=len(set(self.community)),
         )
         return {"Delta Screening": res}

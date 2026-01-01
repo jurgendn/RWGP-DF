@@ -16,6 +16,7 @@ class NaiveDynamicLouvain(LouvainMixin):
         tolerance: float = 1e-2,
         max_iterations: int = 20,
         verbose: bool = True,
+        num_communities_range: Tuple[int, int] = (1, 5),
     ) -> None:
         super().__init__(
             graph=graph,
@@ -24,6 +25,7 @@ class NaiveDynamicLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
+            num_communities_range=num_communities_range,
         )
         self.__shortname__ = "naive"
 
@@ -146,10 +148,12 @@ class NaiveDynamicLouvain(LouvainMixin):
         runtime = time() - start_time
         community_assignment = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
         self.sampler.update_communities(community_assignment)
+        self.sampler.update_graph(self.graph)
         modularity = self.get_modularity()
         res = IntermediateResults(
             runtime=runtime,
             modularity=modularity,
             affected_nodes=len(self.nodes),
+            num_communities= len(set(self.community)),
         )
         return {"Naive Dynamic Louvain": res}

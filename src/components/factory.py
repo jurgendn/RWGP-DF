@@ -8,6 +8,7 @@ class IntermediateResults(BaseModel):
     runtime: float = 0.0
     modularity: float = 0.0
     affected_nodes: int = 0
+    num_communities: int = 0
 
 
 class MethodDynamicResults(BaseModel):
@@ -15,6 +16,15 @@ class MethodDynamicResults(BaseModel):
     modularities: List[float] = []
     affected_nodes: List[int] = []
     iterations_per_step: List[int] = []
+    num_communities: List[int] = []
+
+    def update_intermediate_results(
+        self, intermediate_results: IntermediateResults
+    ):
+        self.runtimes.append(intermediate_results.runtime)
+        self.modularities.append(intermediate_results.modularity)
+        self.affected_nodes.append(intermediate_results.affected_nodes)
+        self.num_communities.append(intermediate_results.num_communities)
 
     @property
     def avg_runtime(self):
@@ -41,3 +51,9 @@ class MethodDynamicResults(BaseModel):
     @property
     def time_steps(self) -> List[int]:
         return list(range(len(self.runtimes)))
+    
+    @property
+    def avg_modularities(self):
+        if not self.modularities:
+            return 0.0
+        return np.mean(self.modularities)

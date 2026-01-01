@@ -48,7 +48,7 @@ def delta_modularity_keep(
 
 # Main algorithm: GP-DF
 def split_community(
-    graph: nx.Graph, community: List[int] | Set[int], steps: int = 20
+    graph: nx.Graph, community: List[int] | Set[int], steps: int = 10
 ) -> Tuple[List[int], List[int]]:
     nodes = list(community)
     # index = {node: i for i, node in enumerate(nodes)}
@@ -165,7 +165,6 @@ def validate_division(
     )
     delta_q = new_q - original_q
     if delta_q > 0:
-        print(f"Original Q: {original_q}, New Q: {new_q}")
         return tmp_communities, True
     return original_community, False
 
@@ -184,7 +183,6 @@ def update_community(
         partition[node] = community_id
     for node in community_2:
         partition[node] = community_id + num_community
-    # Reindex the partition to increment community IDs
     return partition
 
 
