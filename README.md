@@ -1,3 +1,152 @@
+# RWGP-DF (Dynamic Frontier Louvain + GP refinement)
+
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](requirements.txt)
+[![Platform](https://img.shields.io/badge/platform-cross--platform-lightgrey)](#requirements)
+[![Status](https://img.shields.io/badge/status-research%2Fexperimental-orange)](#whats-in-the-repo)
+
+This repository contains a research-oriented implementation of **Dynamic Frontier Louvain** for **dynamic/temporal community detection**, plus a **GP-refined** variant ("GP-DF") and supporting baselines.
+
+The primary workflow is **script-driven benchmarking/experimentation** over temporal edge updates (batch updates or time-windowed updates).
+
+## What’s in the repo
+
+Algorithms (in `src/models/`):
+
+- `DynamicFrontierLouvain` (DF): incremental Louvain with an “affected frontier”.
+- `GPDynamicFrontierLouvain` (GP-DF): DF + refinement using GP separators in `src/gp_df/`.
+- `DeltaScreeningLouvain`: DF-style update with delta screening.
+- `StaticLouvain`: recompute baseline.
+- `NaiveDynamicLouvain`: naive dynamic baseline.
+
+Experiment/benchmark entrypoints:
+
+- `run_benchmarks.py`: benchmark sweep driven by `config/default.yaml`.
+- `run.py`: synthetic-graph Optuna experiment (uses MLflow/Optuna).
+- `run_college_msg_graph.py`, `run_bitcoin_alpha.py`, `run_bitcoin_otc.py`, `run_sx_mathoverflow.py`: dataset-specific Optuna/MLflow experiments.
+
+## Requirements
+
+Python **3.10+** is required (the codebase uses modern type syntax like `A | B`).
+
+Install the base scientific stack:
+
+```bash
+pip install -r requirements.txt
+```
+
+For benchmarks + plots you will also typically need:
+
+```bash
+pip install pydantic tqdm pyyaml seaborn plotly wandb
+```
+
+For Optuna/MLflow experiment scripts (`run.py` and the `run_*.py` dataset scripts):
+
+```bash
+pip install optuna mlflow python-dotenv
+```
+
+## Datasets
+
+This repo expects a local `dataset/` directory (it is gitignored). Place files there and point `config/default.yaml` at them.
+
+Common filenames referenced by configs/scripts:
+
+- `dataset/CollegeMsg.txt`
+- `dataset/soc-sign-bitcoinalpha.csv`
+- `dataset/soc-sign-bitcoinotc.csv`
+- `dataset/sx-mathoverflow.txt`
+- `dataset/email-Eu-core-temporal.txt`
+- `dataset/sx-askubuntu.txt`
+- `dataset/soc-redditHyperlinks-body.tsv`
+
+## Run benchmarks (recommended starting point)
+
+1) Edit `config/default.yaml`:
+
+- Choose `mode`: `batch` or `window_frame`
+- Set `target_datasets`
+- Ensure each dataset entry has the right `dataset_path`, `source_idx`, `target_idx`, and (for `window_frame`) `timestamp_idx`
+
+2) Run:
+
+```bash
+python run_benchmarks.py
+```
+
+Outputs are written under `results/` (also gitignored), by default:
+
+- `results/<mode>_benchmark/<dataset_name>/...`
+
+## Programmatic usage (minimal example)
+
+```python
+import networkx as nx
+
+from src.data_loader import DatasetBatchManager
+from src.models import DynamicFrontierLouvain
+
+data_manager = DatasetBatchManager()
+
+G, temporal_changes = data_manager.get_dataset(
+    dataset_path="dataset/CollegeMsg.txt",
+    dataset_type="college_msg",
+    source_idx=0,
+    target_idx=1,
+    batch_range=0.005,
+    initial_fraction=0.5,
+    max_steps=10,
+    load_full_nodes=True,
+)
+
+initial = nx.algorithms.community.louvain_communities(G, seed=42)
+initial_partition = {node: cid for cid, community in enumerate(initial) for node in community}
+
+model = DynamicFrontierLouvain(graph=G, initial_communities=initial_partition)
+model.run([], [])  # “step 0”
+
+for change in temporal_changes:
+    metrics_by_name = model.run(change.deletions, change.insertions)
+    df_metrics = metrics_by_name["DF Louvain"]
+    print(df_metrics.modularity, df_metrics.runtime)
+```
+
+## Repository layout
+
+```text
+.
+├── config/
+│   ├── default.yaml
+│   └── synthesis.yaml
+├── consts/                 # Dataset-/experiment-specific constants (MLflow/Optuna, etc.)
+├── docs/                   # Design notes, async status, refactor summary
+├── src/
+│   ├── benchmarks.py       # Runner + benchmark wiring
+│   ├── components/         # Result schemas + temporal change objects
+│   ├── data_loader/        # Batch + window-frame dataset loaders
+│   ├── gp_df/              # GP separator refinement variants
+│   ├── models/             # DF / GP-DF / baselines
+│   └── utils/              # Plotting + helpers + MLflow logging
+├── run_benchmarks.py
+├── run.py
+├── run_college_msg_graph.py
+├── run_bitcoin_alpha.py
+├── run_bitcoin_otc.py
+├── run_sx_mathoverflow.py
+└── requirements.txt
+```
+
+## Docs
+
+- `docs/ARCHITECTURE.md` describes the module breakdown.
+- `docs/REFACTORING_SUMMARY.md` contains historical refactor notes.
+
+---
+
+Last updated: 2026-01-07
+
+<!--
+
 # Dynamic Frontier Louvain Algorithm for Community Detection
 
 A comprehensive Python implementation of the Dynamic Frontier Louvain algorithm for efficient community detection in dynamic networks. This project provides multiple implementations including synchronous, asynchronous, and specialized variants with extensive benchmarking capabilities.
@@ -483,3 +632,5 @@ This project is open source under the MIT License. See `LICENSE` file for detail
 **Last Updated**: July 2025
 **Version**: 2.0
 **Python Compatibility**: 3.8+
+
+-->
