@@ -1,7 +1,7 @@
-import networkx as nx
-import numpy as np
 from typing import Dict, List, Tuple
-from pyinstrument import Profiler
+
+import networkx as nx
+
 
 def separate_communities_v2(
     graph: nx.Graph,

@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 
 from src.components.dataset import TemporalChanges
+
 np.random.seed(42)  # For reproducibility
 
 

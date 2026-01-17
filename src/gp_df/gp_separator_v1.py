@@ -2,9 +2,11 @@ from typing import Dict, List, Tuple
 
 import networkx as nx
 import numpy as np
-from sklearn.cluster import KMeans, MiniBatchKMeans
-from src.models.community_info import CommunityUtils
 from pyinstrument import Profiler
+from sklearn.cluster import KMeans
+
+from src.models.community_info import CommunityUtils
+
 
 def separate_communities_v1(
     graph: nx.Graph, communities: Dict[int, int]
