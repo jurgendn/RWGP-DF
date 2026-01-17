@@ -1,0 +1,33 @@
+name: Ruff
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Run Ruff linter
+      uses: chartboost/ruff-action@v1
+      with:
+        args: check --output-format=github
+    
+    - name: Run Ruff formatter
+      uses: chartboost/ruff-action@v1
+      with:
+        args: format --check
