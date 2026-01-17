@@ -1,7 +1,8 @@
-from typing import Dict, List, Tuple
+from typing import List, Tuple
+
+import networkx as nx
 
 from src.components.dataset import TemporalChanges
-import networkx as nx
 
 
 def _collect_edges_by_date(data):

@@ -7,7 +7,7 @@ This module provides specialized dataset managers for different data loading app
 import os
 import pickle
 import time
-from typing import Dict, List, Optional, Text, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import networkx as nx
 

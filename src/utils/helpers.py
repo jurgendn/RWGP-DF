@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import networkx as nx
 import numpy as np
@@ -128,7 +128,7 @@ def capture_graph_statistics(
     try:
         # Assortativity (degree correlation)
         stats["degree_assortativity"] = nx.degree_assortativity_coefficient(graph)
-    except:
+    except Exception:
         stats["degree_assortativity"] = None
     
     # Edge connectivity (for smaller graphs)
@@ -136,7 +136,7 @@ def capture_graph_statistics(
         try:
             stats["edge_connectivity"] = nx.edge_connectivity(graph)
             stats["node_connectivity"] = nx.node_connectivity(graph)
-        except:
+        except Exception:
             stats["edge_connectivity"] = None
             stats["node_connectivity"] = None
 

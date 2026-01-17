@@ -10,7 +10,7 @@ import optuna
 from dotenv import load_dotenv
 from tqdm.auto import tqdm
 
-from consts.college_msg import BoundedValue, GlobalValues, BatchSizeConfig
+from consts.college_msg import BatchSizeConfig, BoundedValue, GlobalValues
 from src.components.factory import IntermediateResults, MethodDynamicResults
 from src.data_loader import DatasetBatchManager
 from src.data_loader.batch_loader import load_txt_dataset
@@ -22,7 +22,7 @@ from src.models import (
     StaticLouvain,
 )
 from src.models.community_info import CommunityUtils
-from src.utils import helpers, mlflow_logger
+from src.utils import mlflow_logger
 from src.utils.plotter import Plotter
 
 os.environ["PYTHONHASHSEED"] = f"{GlobalValues.SEED}"

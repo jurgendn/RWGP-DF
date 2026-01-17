@@ -1,6 +1,6 @@
 import os
 import random
-from typing import Dict, List, Text, Tuple
+from typing import Dict, List, Tuple
 
 import networkx as nx
 import numpy as np
