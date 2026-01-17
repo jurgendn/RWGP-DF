@@ -8,9 +8,8 @@ class GlobalValues:
     EXPERIMENT_NAME = "[RIVF2025] Synthetic Dataset"
     OPTUNA_DB = "postgresql://root:toor@100.125.199.30:5432/optuna"
 
-
     SEED = 42
-    GENERATOR_TYPE = "gaussian" # Options: 'lfr', 'gaussian'
+    GENERATOR_TYPE = "gaussian"  # Options: 'lfr', 'gaussian'
     SOURCE_IDX = 0
     TARGET_IDX = 1
     INITIAL_FRACTION = 0.5
@@ -27,6 +26,7 @@ class BoundedValue:
     lower: float | int
     upper: float | int
 
+
 @dataclass
 class GraphParams:
     graph_size: str
@@ -36,6 +36,7 @@ class GraphParams:
     p_in: BoundedValue
     p_out: BoundedValue
     batch_range: List[BoundedValue]
+
 
 @dataclass
 class GraphSizeConfig:

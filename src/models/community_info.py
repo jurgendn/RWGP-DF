@@ -175,9 +175,7 @@ class CommunityUtils:
         community_sets = list(
             CommunityUtils.get_communities_as_sets(communities=communities).values()
         )
-        return nx.algorithms.community.modularity(
-            G=graph, communities=community_sets
-        )
+        return nx.algorithms.community.modularity(G=graph, communities=community_sets)
 
     @staticmethod
     def get_communities_as_sets(communities: Dict[int, int]) -> Dict[int, Set[Any]]:
