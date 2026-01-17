@@ -11,9 +11,11 @@ os.environ["PYTHONHASHSEED"] = f"{SEED}"
 np.random.seed(SEED)
 random.seed(SEED)
 
+
 class TemporalChanges(BaseModel):
     deletions: List[Tuple]
     insertions: List[Tuple]
+
 
 class SelectiveSampler:
     def __init__(
@@ -63,7 +65,7 @@ class SelectiveSampler:
         num_communities = np.random.randint(
             self.num_communities_range[0], self.num_communities_range[1] + 1
         )
-        
+
         selected_communities = np.random.choice(
             communities_list, size=num_communities, replace=False
         )

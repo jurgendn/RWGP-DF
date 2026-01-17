@@ -21,12 +21,15 @@ from src.models import (
 warnings.filterwarnings("ignore")
 
 
-
 class BenchmarkMethod:
     def __init__(
         self,
         model_name: Text,
-        model_instance: DeltaScreeningLouvain | NaiveDynamicLouvain | DynamicFrontierLouvain | GPDynamicFrontierLouvain | StaticLouvain,
+        model_instance: DeltaScreeningLouvain
+        | NaiveDynamicLouvain
+        | DynamicFrontierLouvain
+        | GPDynamicFrontierLouvain
+        | StaticLouvain,
         logger: bool = False,
         verbose: bool = False,
     ):
@@ -87,7 +90,7 @@ class BenchmarkMethod:
             progress_bar.set_description(
                 f"Step {i + 1}/{len(temporal_changes)} - Get changes"
             )
-        
+
             if self.verbose:
                 progress_bar.set_postfix_str(
                     f"Processing {self.model_name} - Step {i + 1}"
@@ -99,7 +102,6 @@ class BenchmarkMethod:
                 results[key].modularities.append(value.modularity)
                 results[key].affected_nodes.append(value.affected_nodes)
 
-
             for edge in deletions:
                 if current_graph.has_edge(*edge):
                     current_graph.remove_edge(*edge)
@@ -108,7 +110,7 @@ class BenchmarkMethod:
                     current_graph.add_edge(edge[0], edge[1], weight=edge[2])
                 else:  # (u, v)
                     current_graph.add_edge(edge[0], edge[1], weight=1.0)
-        
+
         self.is_fitted = True
         self.results = results
         return results
@@ -139,7 +141,7 @@ class Runner:
         self.logger = logger
         self.sampler_type = sampler_type
         self.results = {}
-        self.models = models 
+        self.models = models
         if self.logger:
             wandb.init(
                 project="gp-df-louvain",

@@ -146,7 +146,9 @@ class NaiveDynamicLouvain(LouvainMixin):
         start_time = time()
         self.louvain_move(lambda_functions)
         runtime = time() - start_time
-        community_assignment = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        community_assignment = {
+            self.nodes[i]: self.community[i] for i in range(len(self.nodes))
+        }
         self.sampler.update_communities(community_assignment)
         self.sampler.update_graph(self.graph)
         modularity = self.get_modularity()
@@ -154,6 +156,6 @@ class NaiveDynamicLouvain(LouvainMixin):
             runtime=runtime,
             modularity=modularity,
             affected_nodes=len(self.nodes),
-            num_communities= len(set(self.community)),
+            num_communities=len(set(self.community)),
         )
         return {"Naive Dynamic Louvain": res}

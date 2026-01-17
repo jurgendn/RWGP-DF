@@ -11,15 +11,17 @@ def _collect_edges_by_date(data):
     Returns a list of (date, [(node1, node2, timestamp), ...]) sorted by date.
     """
     from datetime import datetime
+
     edges_by_date = {}
     for node1, node2, timestamp in data:
         # Convert timestamp to date string (YYYYMMDD)
-        date = datetime.fromtimestamp(timestamp).strftime('%Y%m%d')
+        date = datetime.fromtimestamp(timestamp).strftime("%Y%m%d")
         if date not in edges_by_date:
             edges_by_date[date] = []
         edges_by_date[date].append((node1, node2, timestamp))
     # Return sorted by date
     return sorted(edges_by_date.items())
+
 
 def load_txt_dataset_with_timestamps(
     file_path: str,
@@ -32,7 +34,6 @@ def load_txt_dataset_with_timestamps(
     max_steps: int | None = None,
     load_full_nodes: bool = True,
 ) -> Tuple[nx.Graph, List[TemporalChanges]]:
-
     data = []
     full_nodes = set()
     with open(file_path, "r") as f:

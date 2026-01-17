@@ -46,6 +46,7 @@ def delta_modularity_keep(
     delta_q = (l_iC / total_edges) - (d_node * sum_kj) / (4 * total_edges * total_edges)
     return delta_q
 
+
 # Main algorithm: GP-DF
 def split_community(
     graph: nx.Graph, community: List[int] | Set[int], steps: int = 10
@@ -197,7 +198,6 @@ def separate_communities_v2_full(
     else:
         original_communities = full_communities.copy()
         partition = full_communities.copy()
-
 
     for community_id in set(communities.values()):
         nodes_in_community = [

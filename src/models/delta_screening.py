@@ -44,14 +44,16 @@ class DeltaScreeningLouvain(LouvainMixin):
         self.community[node_idx] = new_community
         self._mark_neighbors_affected(node_idx)
 
-    def _get_current_connection_weight(self, node_idx: int, target_community: int) -> float:
+    def _get_current_connection_weight(
+        self, node_idx: int, target_community: int
+    ) -> float:
         neighbor_communities = self._get_neighbor_communities(node_idx)
         return neighbor_communities.get(target_community, 0.0)
 
     def _identify_affected_vertices(
-        self, 
+        self,
         edge_deletions: Optional[List[Tuple]] = None,
-        edge_insertions: Optional[List[Tuple]] = None
+        edge_insertions: Optional[List[Tuple]] = None,
     ) -> None:
         self.affected.fill(False)
         if self.previous_community is None:
@@ -85,7 +87,7 @@ class DeltaScreeningLouvain(LouvainMixin):
                         insertion_groups[idx2].append((idx1, weight))
             for source_idx, targets in insertion_groups.items():
                 source_community = int(self.previous_community[source_idx])
-                best_delta_modularity = -float('inf')
+                best_delta_modularity = -float("inf")
                 best_target_community = None
                 for target_idx, weight in targets:
                     target_community = int(self.previous_community[target_idx])
@@ -104,9 +106,7 @@ class DeltaScreeningLouvain(LouvainMixin):
     def _in_affected_range_function(self, node_idx: int) -> bool:
         return True
 
-    def louvain_move(
-        self, lambda_functions: Optional[Dict[str, Any]] = None
-    ) -> int:
+    def louvain_move(self, lambda_functions: Optional[Dict[str, Any]] = None) -> int:
         if lambda_functions is None:
             # Default: use delta-screening functions
             is_affected = self._is_affected_function
@@ -213,7 +213,9 @@ class DeltaScreeningLouvain(LouvainMixin):
         }
         self.louvain_move(lambda_functions)
         runtime = time() - start_time
-        community_assignment = {self.nodes[i]: self.community[i] for i in range(len(self.nodes))}
+        community_assignment = {
+            self.nodes[i]: self.community[i] for i in range(len(self.nodes))
+        }
         self.sampler.update_communities(community_assignment)
         self.sampler.update_graph(self.graph)
         res = IntermediateResults(

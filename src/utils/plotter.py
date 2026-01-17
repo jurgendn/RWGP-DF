@@ -13,7 +13,13 @@ from src.components.factory import (
 class Plotter:
     def __init__(self):
         pass
-    def plot_results(self, dataset_name: str, results: Dict[Text, MethodDynamicResults], save_path: Optional[str] = None):
+
+    def plot_results(
+        self,
+        dataset_name: str,
+        results: Dict[Text, MethodDynamicResults],
+        save_path: Optional[str] = None,
+    ):
         """
         Plot comprehensive benchmark results with DF vs NX comparisons.
 
@@ -71,7 +77,7 @@ class Plotter:
             axes[1, 0].legend()
             axes[1, 0].set_ylabel("Number of Affected Nodes")
             axes[1, 0].grid(True, alpha=0.3)
-        
+
         # 4. Average runtime comparison (bar chart)
         algorithms = [method_name for method_name in results.keys()]
         avg_runtimes = [
@@ -108,10 +114,17 @@ class Plotter:
 
         return fig
 
+
 class SeparatePlotter:
     def __init__(self):
         pass
-    def plot_results(self, dataset_name: str, results: Dict[Text, MethodDynamicResults], save_path: Optional[str] = None):
+
+    def plot_results(
+        self,
+        dataset_name: str,
+        results: Dict[Text, MethodDynamicResults],
+        save_path: Optional[str] = None,
+    ):
         """
         Plot comprehensive benchmark results with DF vs NX comparisons.
 
@@ -169,7 +182,7 @@ class SeparatePlotter:
             axes[1, 0].legend()
             axes[1, 0].set_ylabel("Number of Affected Nodes")
             axes[1, 0].grid(True, alpha=0.3)
-        
+
         # 4. Average runtime comparison (bar chart)
         algorithms = [method_name for method_name in results.keys()]
         avg_runtimes = [
@@ -238,11 +251,11 @@ class SeparatePlotter:
     ):
         num_batches = len(results)
         fig = make_subplots(
-            rows=1, 
+            rows=1,
             cols=num_batches,
             # Removed shared_yaxes=True to allow independent y-axis scaling
         )
-        
+
         # Define consistent colors and styles for each method
         method_colors = {
             "DF Louvain": "#1f77b4",
@@ -251,17 +264,17 @@ class SeparatePlotter:
             "ND Louvain": "#d62728",
             "DS Louvain": "#9467bd",
         }
-        
+
         # Get all unique methods across all batches
         all_methods = set()
         for batch_group in results.values():
             all_methods.update(batch_group.keys())
-        
+
         # Create consistent styles for all methods
         method_styles = {
             method: dict(
                 line=dict(width=2, color=method_colors.get(method, "#000000")),
-                marker=dict(size=6, line=dict(width=1, color="DarkSlateGrey"))
+                marker=dict(size=6, line=dict(width=1, color="DarkSlateGrey")),
             )
             for method in all_methods
         }
@@ -290,11 +303,7 @@ class SeparatePlotter:
             template="plotly_white",
             font=dict(size=14),
             legend=dict(
-                orientation="h", 
-                yanchor="bottom", 
-                y=1.02, 
-                xanchor="center", 
-                x=0.5
+                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
             ),
             margin=dict(l=40, r=40, t=80, b=40),
             showlegend=True,
@@ -307,11 +316,11 @@ class SeparatePlotter:
     ):
         num_batches = len(results)
         fig = make_subplots(
-            rows=1, 
+            rows=1,
             cols=num_batches,
             # Removed shared_yaxes=True to allow independent y-axis scaling
         )
-        
+
         # Define consistent colors and styles for each method
         method_colors = {
             "DF Louvain": "#1f77b4",
@@ -320,17 +329,17 @@ class SeparatePlotter:
             "ND Louvain": "#d62728",
             "DS Louvain": "#9467bd",
         }
-        
+
         # Get all unique methods across all batches
         all_methods = set()
         for batch_group in results.values():
             all_methods.update(batch_group.keys())
-        
+
         # Create consistent styles for all methods
         method_styles = {
             method: dict(
                 line=dict(width=2, color=method_colors.get(method, "#000000")),
-                marker=dict(size=6, line=dict(width=1, color="DarkSlateGrey"))
+                marker=dict(size=6, line=dict(width=1, color="DarkSlateGrey")),
             )
             for method in all_methods
         }
@@ -359,11 +368,7 @@ class SeparatePlotter:
             template="plotly_white",
             font=dict(size=14),
             legend=dict(
-                orientation="h", 
-                yanchor="bottom", 
-                y=1.02, 
-                xanchor="center", 
-                x=0.5
+                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
             ),
             margin=dict(l=40, r=40, t=80, b=40),
             showlegend=True,
@@ -375,10 +380,7 @@ class SeparatePlotter:
         self, results: Dict[Text, Dict[Text, MethodDynamicResults]]
     ):
         num_batches = len(results)
-        fig = make_subplots(
-            rows=1,
-            cols=num_batches
-        )
+        fig = make_subplots(rows=1, cols=num_batches)
 
         # Define consistent colors for each method
         method_colors = {
@@ -434,10 +436,7 @@ class SeparatePlotter:
         self, results: Dict[Text, Dict[Text, MethodDynamicResults]]
     ):
         num_batches = len(results)
-        fig = make_subplots(
-            rows=1,
-            cols=num_batches
-        )
+        fig = make_subplots(rows=1, cols=num_batches)
 
         # Define consistent colors for each method
         method_colors = {
@@ -481,11 +480,7 @@ class SeparatePlotter:
             template="plotly_white",
             font=dict(size=14),
             legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5
+                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
             ),
             margin=dict(l=40, r=40, t=80, b=40),
             showlegend=False,
@@ -501,15 +496,14 @@ class SeparatePlotter:
         font_size: int = 36,
         title: str | None = "Large graph, large community size",
     ):
-        def make_subplot_title(
-            results: Dict[Text, Dict[Text, MethodDynamicResults]]
-        ):
+        def make_subplot_title(results: Dict[Text, Dict[Text, MethodDynamicResults]]):
             subplot_titles = []
             keys = results.keys()
             for key in keys:
                 text = f"Batch size: {key}"
                 subplot_titles.append(text)
             return subplot_titles
+
         target_methods = ["GP-DF Louvain", "DF Louvain", "Static Louvain"]
         # Define consistent colors for each method
         method_colors = {
@@ -577,9 +571,9 @@ class SeparatePlotter:
                 col=col_idx + 1,
             )
             fig.update_xaxes(
-                row=1, 
+                row=1,
                 col=col_idx + 1,
-                showticklabels=False  # Hide x-axis labels on top row
+                showticklabels=False,  # Hide x-axis labels on top row
             )
             fig.update_xaxes(
                 row=2,
@@ -664,13 +658,15 @@ class SeparatePlotter:
     ):
         ieee_font = dict(family="Arial, Helvetica, sans-serif", size=18, color="#222")
         ieee_legend_font = dict(family="Arial, Helvetica, sans-serif", size=18)
-        ieee_title_font = dict(family="Arial Black, Arial, Helvetica, sans-serif", size=20)
+        ieee_title_font = dict(
+            family="Arial Black, Arial, Helvetica, sans-serif", size=20
+        )
 
         seaborn_colors = sns.color_palette("Set2", 5).as_hex()
-        
+
         method_colors = {
             "DF Louvain": seaborn_colors[0],
-            "GP-DF Louvain": seaborn_colors[1], 
+            "GP-DF Louvain": seaborn_colors[1],
             "Static Louvain": seaborn_colors[2],
             "ND Louvain": seaborn_colors[3],
             "DS Louvain": seaborn_colors[4],
@@ -699,7 +695,7 @@ class SeparatePlotter:
             for method, result in batch_group.items():
                 color = method_colors.get(method, seaborn_colors[0])
                 symbol = method_symbols.get(method, "circle")
-                
+
                 # Scatter plot for each method
                 fig.add_trace(
                     go.Scatter(
@@ -711,7 +707,7 @@ class SeparatePlotter:
                             size=18,
                             symbol=symbol,
                             line=dict(color="white", width=3),
-                            opacity=0.8
+                            opacity=0.8,
                         ),
                         text=[method],
                         textposition="top center",
@@ -725,7 +721,7 @@ class SeparatePlotter:
                             "Modularity: %{y:.4f}<br>"
                             f"Batch: {batch_size}"
                             "<extra></extra>"
-                        )
+                        ),
                     ),
                     row=1,
                     col=col_idx + 1,

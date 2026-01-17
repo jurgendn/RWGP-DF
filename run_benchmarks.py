@@ -1,6 +1,7 @@
 """
 Main script to run DFLouvain benchmarks on the provided datasets.
 """
+
 import os
 import random
 from pathlib import Path
@@ -28,12 +29,12 @@ def run_benchmark(
 ):
     full_nodes_config = dataset_config.copy()
     full_nodes_config["load_full_nodes"] = True
-    
+
     G, temporal_changes = data_manager.get_dataset(**dataset_config)
     initial_communities = nx.algorithms.community.louvain_communities(G)
 
     initial_communities_dict = {}
-    for community_id, community in enumerate(initial_communities): # type: ignore
+    for community_id, community in enumerate(initial_communities):  # type: ignore
         for node in community:
             initial_communities_dict[node] = community_id
 
@@ -110,7 +111,6 @@ def main():
 
     print(f"\nBenchmark complete! Results saved to {results_dir}")
     print("\nFiles created:")
-
 
 
 if __name__ == "__main__":

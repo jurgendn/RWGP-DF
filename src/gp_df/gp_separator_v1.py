@@ -45,7 +45,11 @@ def separate_communities_v1(
                 C1, C2 = split_one_community(graph, list(community))
                 if not C1 or not C2:
                     continue
-                candidate_communities = [nodes if cid != comm_id else C1 for cid, nodes in comm_dict.items() if cid != comm_id]
+                candidate_communities = [
+                    nodes if cid != comm_id else C1
+                    for cid, nodes in comm_dict.items()
+                    if cid != comm_id
+                ]
                 candidate_communities.append(C1)
                 candidate_communities.append(C2)
                 candidate_modularity = nx.algorithms.community.modularity(
@@ -67,7 +71,6 @@ def separate_communities_v1(
                     break  # Restart after any change
     # p.print()
     return node_to_comm
-    
 
 
 def split_one_community(
@@ -122,7 +125,6 @@ def split_one_community(
             return community, []
     else:
         return community, []
-
 
 
 def normalize(matrix: np.ndarray):
