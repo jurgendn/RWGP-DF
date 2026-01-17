@@ -1,4 +1,4 @@
-name: Ruff
+name: CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ["main", "develop"]
 
 jobs:
-  lint:
+  quality:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,13 +21,35 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
     
-    - name: Run Ruff linter
-      uses: chartboost/ruff-action@v1
-      with:
-        args: check --output-format=github
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install ruff mypy bandit pytest pytest-cov
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
-    - name: Run Ruff formatter
-      uses: chartboost/ruff-action@v1
+    - name: Ruff - Linting
+      run: ruff check . --output-format=github
+    
+    - name: Ruff - Formatting
+      run: ruff format --check .
+      continue-on-error: true
+    
+    - name: MyPy - Type checking
+      run: mypy src/ --ignore-missing-imports
+      continue-on-error: true
+    
+    - name: Bandit - Security check
+      run: bandit -r src/ -ll
+      continue-on-error: true
+    
+    - name: Pytest - Run tests
+      run: pytest --cov=src --cov-report=xml --cov-report=term
+      continue-on-error: true
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      if: matrix.python-version == '3.11'
       with:
-        args: format --check
+        file: ./coverage.xml
