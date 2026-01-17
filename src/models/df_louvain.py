@@ -25,7 +25,7 @@ class DynamicFrontierLouvain(LouvainMixin):
             tolerance=tolerance,
             max_iterations=max_iterations,
             verbose=verbose,
-            num_communities_range=num_communities_range
+            num_communities_range=num_communities_range,
         )
         self.__shortname__ = "df"
 
@@ -151,9 +151,7 @@ class DynamicFrontierLouvain(LouvainMixin):
         edge_insertions: List[Tuple],
     ) -> Dict[Text, IntermediateResults]:
         if self.sampler_type == "selective":
-            edge_deletions = self.sampler.sample(
-                num_samples=len(edge_deletions)
-            )
+            edge_deletions = self.sampler.sample(num_samples=len(edge_deletions))
         if edge_deletions or edge_insertions:
             self.apply_batch_update(edge_deletions, edge_insertions)
         lambda_functions = {

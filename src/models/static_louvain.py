@@ -76,7 +76,7 @@ class StaticLouvain(LouvainMixin):
         start_time = time()
         communities = nx.algorithms.community.louvain_communities(self.graph, seed=42)
         runtime = time() - start_time
-        for community_id, community_nodes in enumerate(communities): # type: ignore
+        for community_id, community_nodes in enumerate(communities):  # type: ignore
             for node in community_nodes:
                 self.community[self.node_to_idx[node]] = community_id
         self.sampler.update_communities(
@@ -88,6 +88,6 @@ class StaticLouvain(LouvainMixin):
             runtime=runtime,
             modularity=modularity_score,
             affected_nodes=len(self.nodes),  # All nodes processed
-            num_communities=len(communities), # type: ignore
+            num_communities=len(communities),  # type: ignore
         )
         return {"Static Louvain": res}

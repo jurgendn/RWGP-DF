@@ -37,7 +37,9 @@ data_manager = DatasetBatchManager()
 experiment = mlflow.get_experiment_by_name(GlobalValues.EXPERIMENT_NAME)
 if experiment is None:
     mlflow.create_experiment(GlobalValues.EXPERIMENT_NAME)
-experiment_id = mlflow.get_experiment_by_name(GlobalValues.EXPERIMENT_NAME).experiment_id
+experiment_id = mlflow.get_experiment_by_name(
+    GlobalValues.EXPERIMENT_NAME
+).experiment_id
 mlflow.set_experiment(experiment_name=GlobalValues.EXPERIMENT_NAME)
 
 
@@ -46,7 +48,7 @@ def make_dataset(
     initial_fraction: float,
     delete_insert_ratio: float,
     type: str = "lfr",
-    **kwargs
+    **kwargs,
 ):
     dataset_config = {
         "dataset_path": "dataset/synthetic_graph.txt",
@@ -82,20 +84,20 @@ def make_dataset(
     return G, temporal_changes, initial_communities_dict, graph_info
 
 
-
 def optimize_delta_q(
     batch_range_config: BoundedValue,
     n_config: BoundedValue,
     s_config: BoundedValue,
     p_in_config: BoundedValue,
     p_out_config: BoundedValue,
-    tags: Dict|None = None
+    tags: Dict | None = None,
 ):
     plotter = Plotter()
+
     # Use Optuna to optimize the delta_q threshold
     def objective(trial: optuna.Trial) -> float:
         count = 0
-        if GlobalValues.GENERATOR_TYPE== "gaussian":
+        if GlobalValues.GENERATOR_TYPE == "gaussian":
             params = {
                 "n": trial.suggest_int("n", int(n_config.lower), int(n_config.upper)),
                 "s": trial.suggest_int("s", int(s_config.lower), int(s_config.upper)),
@@ -172,7 +174,6 @@ def optimize_delta_q(
             verbose=False,
         )
 
-
         df_res = MethodDynamicResults()
         gp_df_res = MethodDynamicResults()
         static_louvain_res = MethodDynamicResults()
@@ -201,12 +202,14 @@ def optimize_delta_q(
             delta_screening_intermediate_res = delta_screening.run(
                 change.deletions, change.insertions
             )
-            
+
             step_gp_df_res = gp_df_intermediate_res["GP - Dynamic Frontier Louvain"]
             step_df_res = df_intermediate_res["DF Louvain"]
             step_static_louvain_res = static_intermediate_res["Static Louvain"]
             step_naive_df_res = naive_df_intermediate_res["Naive Dynamic Louvain"]
-            step_delta_screening_res = delta_screening_intermediate_res["Delta Screening"]
+            step_delta_screening_res = delta_screening_intermediate_res[
+                "Delta Screening"
+            ]
 
             df_res.update_intermediate_results(intermediate_results=step_df_res)
             gp_df_res.update_intermediate_results(intermediate_results=step_gp_df_res)
@@ -228,17 +231,19 @@ def optimize_delta_q(
                 raise optuna.TrialPruned(
                     f"Delta Q is negative at step {idx}, stopping trial."
                 )
-            
+
             temporal_progress.set_postfix(
                 {
                     "Delta Q": step_gp_df_res.modularity - step_df_res.modularity,
                 }
             )
-        target= count + best_q
+        target = count + best_q
 
-        def should_log_to_mlflow(target_val: float,
-                     gp_df_results: MethodDynamicResults,
-                     static_results: MethodDynamicResults):
+        def should_log_to_mlflow(
+            target_val: float,
+            gp_df_results: MethodDynamicResults,
+            static_results: MethodDynamicResults,
+        ):
             return (
                 target_val > 0
                 and gp_df_results.avg_runtime < static_results.avg_runtime
@@ -306,7 +311,6 @@ def optimize_delta_q(
         show_progress_bar=True,
     )
     return study
-
 
 
 def runner():

@@ -8,7 +8,9 @@ class NetworkVisualizer:
     def __init__(self):
         pass
 
-    def make_layout(self, graph: nx.Graph, communities: Dict[int, int]) -> Dict[int, Dict[str, float]]:
+    def make_layout(
+        self, graph: nx.Graph, communities: Dict[int, int]
+    ) -> Dict[int, Dict[str, float]]:
         """
         Create a circular layout for each community, arranging community centers circularly.
         Each node is assigned a position based on its community.
@@ -26,11 +28,15 @@ class NetworkVisualizer:
         for cid in community_ids:
             hypergraph.add_node(cid)
         hypergraph_pos = nx.circular_layout(hypergraph, scale=1.0)
-        hypergraph_pos = {cid: {"x": pos[0], "y": pos[1]} for cid, pos in hypergraph_pos.items()}
+        hypergraph_pos = {
+            cid: {"x": pos[0], "y": pos[1]} for cid, pos in hypergraph_pos.items()
+        }
 
         # Arrange nodes within each community
         for cid in community_ids:
-            community_nodes = [node for node, comm in communities.items() if comm == cid]
+            community_nodes = [
+                node for node, comm in communities.items() if comm == cid
+            ]
             subgraph = graph.subgraph(community_nodes)
             node_layout = nx.spiral_layout(subgraph, scale=0.3, dim=2)
             for node, pos in node_layout.items():
@@ -54,18 +60,13 @@ class NetworkVisualizer:
             color = cmap(comm % 10)
             # Convert RGBA to hex (ignore alpha, set alpha to 0x20)
             hex_color = "#{:02x}{:02x}{:02x}20".format(
-                int(color[0] * 255),
-                int(color[1] * 255),
-                int(color[2] * 255)
+                int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
             )
             node_colors[node] = hex_color
         return node_colors
 
     def draw(
-        self,
-        graph: nx.Graph,
-        df_results: Dict[int, int],
-        gp_df_results: Dict[int, int]
+        self, graph: nx.Graph, df_results: Dict[int, int], gp_df_results: Dict[int, int]
     ):
         """
         Assigns community colors and layouts to nodes for two sets of results.

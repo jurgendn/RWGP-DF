@@ -24,11 +24,13 @@ class BoundedValue:
     lower: float | int
     upper: float | int
 
+
 @dataclass
 class GraphParams:
     initial_fraction: BoundedValue
     delete_insertion_ratio: BoundedValue
     batch_range: List[BoundedValue]
+
 
 @dataclass
 class BatchSizeConfig:
@@ -41,6 +43,7 @@ class BatchSizeConfig:
             BoundedValue("large", 0.0001, 0.001),
         ],
     )
+
     def get_list(self):
         return [
             self.small_small,

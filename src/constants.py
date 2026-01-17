@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class Colormaps:
     dynamic_frontier_louvain: str = "blue"
@@ -8,6 +9,7 @@ class Colormaps:
     gp_dynamic_frontier_louvain: str = "red"
     nx: str = "green"
 
+
 @dataclass(frozen=True)
 class Markers:
     dynamic_frontier_louvain: str = "x"
@@ -15,6 +17,7 @@ class Markers:
     delta_screening_louvain: str = "s"
     gp_dynamic_frontier_louvain: str = "^"
     nx: str = "D"
+
 
 @dataclass(frozen=True)
 class Linestyles:
